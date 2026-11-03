@@ -36,7 +36,7 @@ test('without consent, completing all questions sends zero collection events',as
 test('admin login gate, forbidden user and aggregate dashboard',async({page})=>{
  let allowed=false,queries=0
  await page.route('**/api/config',r=>r.fulfill({json:{...config,auth:{url:'https://plum-test.supabase.co',key:'public-test-key'}}}))
- await page.route('https://plum-test.supabase.co/auth/v1/**',r=>r.fulfill({json:{access_token:'test-only-token',expires_in:3600}}))
+ await page.route('**/api/login',r=>r.fulfill({json:{access_token:'test-only-token',expires_in:3600}}))
  await page.route('**/api/admin?**',r=>{queries++;return r.fulfill({status:allowed?200:403,json:allowed?{visits:3,starts:2,completions:1,dropoffs:1,daily:[{date:'2026-11-03',visits:3,starts:2,completions:1}],results:[{code:'BTP',count:1}],answers:[{question_id:'bs1',pole:'B',count:1},{question_id:'bs1',pole:'S',count:1}]}:{error:'Administrator access required'}})})
  await page.goto('/admin');await expect(page.getByRole('heading',{name:'관리자 로그인'})).toBeVisible();expect(queries).toBe(0)
  await page.getByLabel('이메일',{exact:true}).fill('admin@example.com');await page.getByLabel('비밀번호',{exact:true}).fill('test-password-only');await page.getByRole('button',{name:'로그인',exact:true}).click()
@@ -63,4 +63,19 @@ test('valid public login settings display login with collection locked; diagnost
  await expect(page.getByRole('cell',{name:'false 설정'})).toHaveCount(2)
  await expect(page.getByRole('link',{name:/값 없는 진단 결과/})).toHaveAttribute('href','/api/config?diagnostics=1')
  expect(await page.locator('body').innerText()).not.toContain('sb_publishable_test')
+})
+
+test('admin login stays same-origin and explains authentication versus connection failures',async({page})=>{
+ await page.route('**/api/config',r=>r.fulfill({json:{...config,auth:{url:'https://plum-test.supabase.co',key:'public-test-key'}}}))
+ let errorCode='INVALID_CREDENTIALS'
+ await page.route('**/api/login',r=>{expect(r.request().method()).toBe('POST');return r.fulfill({status:errorCode==='INVALID_CREDENTIALS'?400:502,json:{errorCode}})})
+ let externalRequests=0
+ await page.route('https://plum-test.supabase.co/**',r=>{externalRequests++;return r.abort()})
+ await page.goto('/admin');await page.getByLabel('이메일',{exact:true}).fill('admin@example.com');await page.getByLabel('비밀번호',{exact:true}).fill('test-only-password')
+ await page.getByRole('button',{name:'로그인',exact:true}).click();await expect(page.getByRole('status')).toContainText('비밀번호가 일치하지')
+ errorCode='AUTH_DNS_FAILED'
+ await page.getByRole('button',{name:'로그인',exact:true}).click();await expect(page.getByRole('status')).toContainText('도메인을 찾지 못했어요')
+ errorCode='AUTH_NETWORK_FAILED'
+ await page.getByRole('button',{name:'로그인',exact:true}).click();await expect(page.getByRole('status')).toContainText('Vercel 서버가 Supabase에 연결하지')
+ expect(externalRequests).toBe(0);await expect(page.locator('table')).toHaveCount(0)
 })

@@ -4,10 +4,11 @@ import {readFile} from 'node:fs/promises'
 import config from '../.server-build/api/config.js'
 import admin from '../.server-build/api/admin.js'
 import events from '../.server-build/api/events.js'
+import login from '../.server-build/api/login.js'
 const before={...process.env},originalFetch=globalThis.fetch
 function response(){let status=0,value;return {res:{set statusCode(n){status=n},setHeader(){},end(body){value=JSON.parse(body)}},get:()=>({status,value})}}
 try{
- for(const file of ['api/config.js','api/admin.js','api/events.js','server/http.js','server/events.js']){
+ for(const file of ['api/config.js','api/admin.js','api/events.js','api/login.js','server/http.js','server/events.js']){
   const source=await readFile(new URL(`../.server-build/${file}`,import.meta.url),'utf8')
   assert.equal(/(?:from\s*["']|import\s*\(\s*["'])[^"']+\.tsx?["']/.test(source),false,`TS runtime import in ${file}`)
  }
@@ -23,6 +24,7 @@ try{
  globalThis.fetch=async url=>new Response(String(url).includes('/auth/v1/user')?JSON.stringify({id:'11111111-1111-4111-8111-111111111111'}):'[]',{status:200})
  r=response();await admin({method:'GET',headers:{authorization:'Bearer test-only-token'},url:'/api/admin?from=2026-11-01&to=2026-11-03'},r.res);assert.equal(r.get().status,403)
  r=response();await events({method:'GET',headers:{}},r.res);assert.equal(r.get().status,405)
+ r=response();await login({method:'POST',headers:{},body:{}},r.res);assert.equal(r.get().status,403)
  console.log('Server ESM runtime passed: config 200, anonymous admin 401, non-admin 403; no TypeScript runtime imports.')
 }finally{
  globalThis.fetch=originalFetch
