@@ -1,0 +1,10 @@
+.git/
+node_modules/
+dist/
+framer/
+browser-tests/
+tests/
+test-results/
+playwright-report/
+*.md
+.env*
