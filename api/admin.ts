@@ -1,4 +1,4 @@
-import {json,db,publicConfig,DatabaseError,type Request,type Response} from '../server/http.ts'
+import {json,db,publicConfig,DatabaseError,type Request,type Response} from '../server/http.js'
 export default async function handler(req:Request,res:Response){
  if(req.method!=='GET')return json(res,405,{error:'Method not allowed'})
  const token=req.headers.authorization?.match(/^Bearer (\S+)$/)?.[1]

@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc --noEmit && vite build",
-    "test": "node --experimental-strip-types tests/quiz.test.ts && node --experimental-strip-types tests/property-controls.test.ts && node --experimental-strip-types tests/collection.test.ts && node --experimental-strip-types tests/api.test.ts && node --experimental-strip-types tests/database.test.ts && node --experimental-strip-types tests/config.test.ts",
-    "test:browser": "playwright test"
+    "build": "tsc --noEmit && vite build && npm run test:server-runtime",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:browser": "playwright test",
+    "test:server-runtime": "tsc -p tsconfig.server.json && node scripts/check-server-runtime.mjs"
   },
   "dependencies": {
     "react": "^19.0.0",
@@ -19,6 +20,7 @@
     "@types/node": "^24.19.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.0",
     "vite": "^6.0.0"
   }

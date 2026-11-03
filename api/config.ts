@@ -1,5 +1,5 @@
-import {json,publicConfig,enabled,env,configurationChecks,COLLECTION_RELEASE_READY,type Request,type Response} from '../server/http.ts'
-import {CONSENT_VERSION} from '../server/events.ts'
+import {json,publicConfig,enabled,env,configurationChecks,COLLECTION_RELEASE_READY,type Request,type Response} from '../server/http.js'
+import {CONSENT_VERSION} from '../server/events.js'
 export default function handler(req:Request,res:Response){
  if(req.method!=='GET')return json(res,405,{error:'Method not allowed'})
  const c=publicConfig()

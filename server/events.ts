@@ -1,5 +1,5 @@
-import {questions,supplements,resolveResult} from '../src/quiz.ts'
-import type {Answers} from '../src/quiz.ts'
+import {questions,supplements,resolveResult} from '../src/quiz.js'
+import type {Answers} from '../src/quiz.js'
 export const CONSENT_VERSION='plum-responses-v1'
 export const kinds=['visit','start','answer','complete','abandon','heartbeat','withdraw'] as const
 export type Kind=typeof kinds[number]
