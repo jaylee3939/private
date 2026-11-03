@@ -1,5 +1,7 @@
 # PLUM TYPE 2.0
 
+익명 참여 수집·관리자 대시보드 구현과 외부 설정은 [SUPABASE_SETUP_KO.md](SUPABASE_SETUP_KO.md)를 참고하세요. 실제 수집은 외부 DB·관리자·보관 작업·서버 환경변수 설정 후에만 활성화됩니다. 아래의 기존 mock 설명은 제품 리서치/구독 데모 또는 이전 버전 설명입니다.
+
 ## 독립 웹앱 실행·Vercel 배포
 
 이 저장소의 최상위 폴더가 React + TypeScript + Vite 웹앱 루트입니다. Framer 없이 실행되며, `framer/`는 별도의 Framer 연결용 소스입니다.
