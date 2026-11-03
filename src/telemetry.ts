@@ -1,7 +1,16 @@
 import type {Answers} from './quiz.ts'
-export type PublicConfig={collectionEnabled:boolean;consentVersion:string;retentionDays:number;privacyContact:string;auth:{url:string;key:string}|null}
+export type PublicConfig={collectionEnabled:boolean;consentVersion:string;retentionDays:number;privacyContact:string;auth:{url:string;key:string}|null;checks?:Record<string,string>;configVersion?:string;collectionLocked?:boolean;loadError?:string}
 export const fallbackConfig:PublicConfig={collectionEnabled:false,consentVersion:'plum-responses-v1',retentionDays:90,privacyContact:'',auth:null}
-export async function getConfig():Promise<PublicConfig>{try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)return fallbackConfig;return await r.json()}catch{return fallbackConfig}}
+export async function getConfig():Promise<PublicConfig>{
+ try{
+  const r=await fetch('/api/config',{cache:'no-store',signal:AbortSignal.timeout(10000)})
+  if(!r.ok)return {...fallbackConfig,loadError:`CONFIG_HTTP_${r.status}`}
+  if(!r.headers.get('content-type')?.includes('application/json'))return {...fallbackConfig,loadError:'CONFIG_NOT_JSON'}
+  const c=await r.json()
+  if(!c||typeof c!=='object'||typeof c.collectionEnabled!=='boolean'||!(c.auth===null||(typeof c.auth==='object'&&typeof c.auth.url==='string'&&typeof c.auth.key==='string')))return {...fallbackConfig,loadError:'CONFIG_INVALID_RESPONSE'}
+  return {...fallbackConfig,...c}
+ }catch{return {...fallbackConfig,loadError:'CONFIG_NETWORK_ERROR'}}
+}
 type Kind='visit'|'start'|'answer'|'complete'|'abandon'|'heartbeat'|'withdraw'
 type Session={id:string;token:string;visitId:string;startId:string;visited:boolean;started:boolean;startRequested:boolean;active:boolean;complete:boolean}
 export class Participation {

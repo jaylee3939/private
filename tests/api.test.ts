@@ -16,8 +16,8 @@ test('Vercel routes fail closed, isolate admins and never return a service key',
   r=response();await events({method:'POST',headers:{origin:'https://wrong.example'},body:payload()} as any,r.response);assert.equal(r.value().status,403)
   r=response();await events({method:'POST',headers:{origin},body:{...payload(),consent:false}} as any,r.response);assert.equal(r.value().status,400)
   const paths:string[]=[];globalThis.fetch=async(url:any)=>{paths.push(String(url));return new Response('null',{status:200})}
-  r=response();await events({method:'POST',headers:{origin},body:payload()} as any,r.response);assert.equal(r.value().body.stored,true);assert.ok(paths[0].endsWith('/rpc/plum_ingest'))
-  r=response();config({method:'GET'} as any,r.response);assert.equal(JSON.stringify(r.value().body).includes('server-only-test-key'),false)
+  r=response();await events({method:'POST',headers:{origin},body:payload()} as any,r.response);assert.equal(r.value().status,503);assert.equal(paths.length,0) // explicit setup lock, even if the environment flag is true
+  r=response();config({method:'GET'} as any,r.response);assert.equal(JSON.stringify(r.value().body).includes('server-only-test-key'),false);assert.equal(r.value().body.collectionEnabled,false);assert.equal(r.value().body.collectionLocked,true);assert.equal(r.value().body.authReady,true)
   process.env.SUPABASE_ANON_KEY='server-only-test-key';r=response();config({method:'GET'} as any,r.response);assert.equal(r.value().body.auth,null);process.env.SUPABASE_ANON_KEY=`e30.${Buffer.from('{"role":"anon"}').toString('base64url')}.test`
   r=response();await admin({method:'GET',headers:{},url:'/api/admin'} as any,r.response);assert.equal(r.value().status,401)
   globalThis.fetch=async(url:any)=>new Response(String(url).includes('/auth/v1/user')?JSON.stringify({id:'11111111-1111-4111-8111-111111111111'}):'[]',{status:200})

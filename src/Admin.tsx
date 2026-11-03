@@ -1,19 +1,37 @@
 import * as React from 'react'
 import {getConfig,fallbackConfig} from './telemetry.ts'
 import {questions,supplements,results} from './quiz.ts'
+import ConfigDiagnostics from './ConfigDiagnostics.tsx'
 type Metrics={visits:number;starts:number;completions:number;dropoffs:number;daily:{date:string;visits:number;starts:number;completions:number}[];results:{code:string;count:number}[];answers:{question_id:string;pole:string;count:number}[]}
 const today=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(new Date())
 const percent=(n:number,d:number)=>d?`${(100*n/d).toFixed(1)}%`:'—'
 export default function Admin(){
  const [config,setConfig]=React.useState(fallbackConfig),[loaded,setLoaded]=React.useState(false),[email,setEmail]=React.useState(''),[password,setPassword]=React.useState(''),[token,setToken]=React.useState(''),[expires,setExpires]=React.useState(0),[from,setFrom]=React.useState(()=>{const d=new Date();d.setDate(d.getDate()-6);return new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(d)}),[to,setTo]=React.useState(today),[metrics,setMetrics]=React.useState<Metrics|null>(null),[message,setMessage]=React.useState(''),[busy,setBusy]=React.useState(false)
  React.useEffect(()=>{getConfig().then(c=>{setConfig(c);setLoaded(true)})},[])
- async function login(e:React.FormEvent){e.preventDefault();if(!config.auth)return;setBusy(true);setMessage('');try{const r=await fetch(`${config.auth.url}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:config.auth.key,'Content-Type':'application/json'},body:JSON.stringify({email,password}),signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error();const value=await r.json();setToken(value.access_token);setExpires(Date.now()+Number(value.expires_in||3600)*1000);setPassword('')}catch{setMessage('로그인하지 못했어요. 이메일과 비밀번호를 확인해 주세요.')}finally{setBusy(false)}}
+ async function login(e:React.FormEvent){
+  e.preventDefault();if(!config.auth)return;setBusy(true);setMessage('')
+  try{
+   const r=await fetch(`${config.auth.url}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:config.auth.key,'Content-Type':'application/json'},body:JSON.stringify({email,password}),signal:AbortSignal.timeout(10000)})
+   const value=await r.json().catch(()=>null)
+   if(!r.ok){
+    const code=value?.code
+    if(code==='email_not_confirmed')throw Error('관리자 이메일 확인이 필요해요. Supabase Authentication → Users에서 확인해 주세요.')
+    if(r.status===429)throw Error('로그인 시도가 너무 많아요. 잠시 후 다시 시도해 주세요.')
+    if(r.status===401||r.status===403)throw Error('Supabase 인증 요청이 거부됐어요. 공개 키와 관리자 계정 정보를 확인해 주세요.')
+    if(r.status>=500)throw Error('Supabase 인증 서비스에 연결하지 못했어요. 프로젝트 상태를 확인해 주세요.')
+    throw Error('로그인하지 못했어요. 이메일과 비밀번호를 확인해 주세요.')
+   }
+   if(typeof value?.access_token!=='string'||!value.access_token)throw Error('Supabase 로그인 응답 형식이 올바르지 않아요.')
+   setToken(value.access_token);setExpires(Date.now()+Number(value.expires_in||3600)*1000);setPassword('')
+  }catch(e){setMessage(e instanceof Error&&e.name!=='TypeError'&&e.name!=='TimeoutError'?e.message:'Supabase 인증 서비스에 연결하지 못했어요. 네트워크와 Project URL을 확인해 주세요.')}finally{setBusy(false)}
+ }
  async function logout(){const current=token;setToken('');setMetrics(null);setMessage('로그아웃했어요.');if(config.auth&&current)try{await fetch(`${config.auth.url}/auth/v1/logout`,{method:'POST',headers:{apikey:config.auth.key,Authorization:`Bearer ${current}`}})}catch{}}
- async function refresh(){if(!token)return;if(Date.now()>=expires){setToken('');setMetrics(null);setMessage('로그인이 만료됐어요. 다시 로그인해 주세요.');return}setBusy(true);setMessage('');try{const r=await fetch(`/api/admin?from=${from}&to=${to}`,{headers:{Authorization:`Bearer ${token}`},cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok){setMetrics(null);if(r.status===401){setToken('');throw Error('로그인이 만료됐어요.')}if(r.status===403)throw Error('이 계정은 관리자로 등록되지 않았어요.');if(r.status===400)throw Error('조회 기간은 최대 93일이며 시작일이 종료일보다 늦을 수 없어요.');throw Error('통계를 불러오지 못했어요. 외부 설정을 확인해 주세요.')}setMetrics(await r.json())}catch(e){setMessage(e instanceof Error?e.message:'연결하지 못했어요.')}finally{setBusy(false)}}
+ async function refresh(){if(!token)return;if(Date.now()>=expires){setToken('');setMetrics(null);setMessage('로그인이 만료됐어요. 다시 로그인해 주세요.');return}setBusy(true);setMessage('');try{const r=await fetch(`/api/admin?from=${from}&to=${to}`,{headers:{Authorization:`Bearer ${token}`},cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok){setMetrics(null);if(r.status===401){setToken('');throw Error('로그인이 만료됐어요.')}if(r.status===403)throw Error('이 계정은 관리자로 등록되지 않았어요.');if(r.status===400)throw Error('조회 기간은 최대 93일이며 시작일이 종료일보다 늦을 수 없어요.');const problem=await r.json().catch(()=>null);const errors:Record<string,string>={PUBLIC_CONFIG_INVALID:'서버의 Supabase URL·공개 키 설정을 확인해 주세요.',DATABASE_AUTH_FAILED:'서버 전용 키가 Supabase에서 거부됐어요. Vercel의 SUPABASE_SERVICE_ROLE_KEY를 확인해 주세요.',DATABASE_ACCESS_DENIED:'데이터베이스 권한이 거부됐어요. 테이블·함수 권한 SQL을 확인해 주세요.',DATABASE_SCHEMA_MISSING:'테이블 또는 집계 함수가 없어요. Supabase SQL 실행과 스키마 반영 상태를 확인해 주세요.',DATABASE_UNAVAILABLE:'데이터베이스 요청에 실패했어요. Supabase 프로젝트 상태를 확인해 주세요.',AUTH_UNAVAILABLE:'Supabase에서 로그인 검증을 완료하지 못했어요.',SERVICE_UNAVAILABLE:'서버에서 외부 서비스에 연결하지 못했어요. 환경 설정과 서비스 상태를 확인해 주세요.'};throw Error(errors[problem?.errorCode]||'통계 API 응답을 확인하지 못했어요. Vercel 서버 오류 종류를 확인해 주세요.')}setMetrics(await r.json())}catch(e){setMessage(e instanceof Error?e.message:'연결하지 못했어요.')}finally{setBusy(false)}}
  React.useEffect(()=>{if(token)void refresh()},[token])
  React.useEffect(()=>{if(!token)return;const timer=setTimeout(()=>{setToken('');setMetrics(null);setMessage('로그인이 만료됐어요. 다시 로그인해 주세요.')},Math.max(0,expires-Date.now()));return()=>clearTimeout(timer)},[token,expires])
  return <main className="plum-admin"><style>{adminCSS}</style><header><a href="/">PLUM</a><span>PRIVATE ANALYTICS</span></header><h1>참여 통계</h1><p>관리자 전용 · 한국 시간(KST) · 원본 응답 대신 집계만 표시</p>
- {!loaded?<p>설정 확인 중…</p>:!config.auth?<p role="status">Supabase 연결 설정이 아직 준비되지 않았습니다. 공개 테스트는 계속 이용할 수 있습니다.</p>:!token?<form onSubmit={login} className="admin-login"><h2>관리자 로그인</h2><label>이메일<input type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)}/></label><label>비밀번호<input type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)}/></label><button disabled={busy}>로그인</button><p>이메일·비밀번호는 Supabase Auth로 직접 전송됩니다. 토큰은 이 화면의 메모리에만 보관하며 새로고침하면 다시 로그인해야 합니다.</p></form>:<>
+ {loaded&&<ConfigDiagnostics config={config}/>}
+ {!loaded?<p>설정 확인 중…</p>:!config.auth?<p>관리자 로그인 설정을 확인해야 합니다. 위 진단에서 확인이 필요한 항목을 찾아 주세요. 공개 테스트는 계속 이용할 수 있습니다.</p>:!token?<form onSubmit={login} className="admin-login"><h2>관리자 로그인</h2><label>이메일<input type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)}/></label><label>비밀번호<input type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)}/></label><button disabled={busy}>로그인</button><p>이메일·비밀번호는 Supabase Auth로 직접 전송됩니다. 토큰은 이 화면의 메모리에만 보관하며 새로고침하면 다시 로그인해야 합니다.</p></form>:<>
  <div className="admin-filters"><label>시작일<input type="date" value={from} max={to} onChange={e=>setFrom(e.target.value)}/></label><label>종료일<input type="date" value={to} min={from} onChange={e=>setTo(e.target.value)}/></label><button onClick={refresh} disabled={busy}>{busy?'조회 중…':'통계 새로고침'}</button><button onClick={logout}>로그아웃</button></div>
  {metrics&&<><div className="admin-counters">{[['동의 방문 세션',metrics.visits],['테스트 시작',metrics.starts],['완료',metrics.completions],['완료율',percent(metrics.completions,metrics.starts)],['이탈 추정',metrics.dropoffs]].map(([label,value])=><section key={String(label)}><h2>{label}</h2><strong>{value}</strong></section>)}</div>
  <p>이 수치는 실제 사람 수가 아닌 익명 참여 세션 수입니다. 새로고침·재참여는 중복 포함될 수 있어요. 완료율과 결과·응답 분포는 선택 기간에 시작한 세션을 기준으로 합니다. 공유 결과 보기만으로 완료가 집계되지는 않습니다.</p>

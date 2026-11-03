@@ -47,3 +47,20 @@ test('admin login gate, forbidden user and aggregate dashboard',async({page})=>{
  await page.screenshot({path:'test-results/plum-admin.png',fullPage:true})
  await page.reload();await expect(page.getByRole('heading',{name:'관리자 로그인'})).toBeVisible()
 })
+
+test('admin distinguishes a server API failure from missing environment variables',async({page})=>{
+ await page.route('**/api/config',r=>r.fulfill({status:500,json:{error:'server failed'}}))
+ await page.goto('/admin')
+ await expect(page.getByRole('alert')).toContainText('HTTP 500')
+ await expect(page.getByRole('heading',{name:'관리자 로그인'})).toHaveCount(0)
+})
+test('valid public login settings display login with collection locked; diagnostics show no values',async({page})=>{
+ const checks={SUPABASE_URL:'ready',SUPABASE_ANON_KEY:'ready',SUPABASE_SERVICE_ROLE_KEY:'present',SITE_ORIGIN:'ready',PRIVACY_CONTACT:'present',RETENTION_JOB_READY:'disabled',DATA_COLLECTION_ENABLED:'disabled'}
+ await page.route('**/api/config',r=>r.fulfill({json:{...config,collectionEnabled:false,collectionLocked:true,configVersion:'plum-config-2',checks,auth:{url:'https://plum-test.supabase.co',key:'sb_publishable_test'}}}))
+ await page.goto('/admin')
+ await expect(page.getByRole('heading',{name:'관리자 로그인'})).toBeVisible()
+ await page.getByText('서버 설정 진단 · 키 값은 표시하지 않습니다').click()
+ await expect(page.getByRole('cell',{name:'false 설정'})).toHaveCount(2)
+ await expect(page.getByRole('link',{name:/값 없는 진단 결과/})).toHaveAttribute('href','/api/config?diagnostics=1')
+ expect(await page.locator('body').innerText()).not.toContain('sb_publishable_test')
+})
