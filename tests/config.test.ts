@@ -10,7 +10,12 @@ test('seven server settings are classified safely; publishable/anon accepted, se
   for(const key of ['SUPABASE_URL','SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','SITE_ORIGIN','PRIVACY_CONTACT','RETENTION_JOB_READY','DATA_COLLECTION_ENABLED'])delete process.env[key]
   let r=res();handler({method:'GET',url:'/api/config?diagnostics=1'} as any,r.response);assert.equal(r.get().value.authReady,false);assert.equal(Object.keys(r.get().value.checks).length,7)
   process.env.SUPABASE_URL=' https://PLUM-Test.supabase.co/ ';process.env.SUPABASE_ANON_KEY='sb_publishable_public-test';process.env.SUPABASE_SERVICE_ROLE_KEY='sb_secret_server-secret-do-not-expose';process.env.SITE_ORIGIN='https://private-atv6.vercel.app';process.env.PRIVACY_CONTACT='contact@example.com';process.env.RETENTION_JOB_READY='true';process.env.DATA_COLLECTION_ENABLED='true'
-  assert.equal(publicConfig().url,'https://plum-test.supabase.co');assert.equal(publicConfig().key,'sb_publishable_public-test');assert.equal(enabled(),false)
+  assert.equal(publicConfig().url,'https://plum-test.supabase.co');assert.equal(publicConfig().key,'sb_publishable_public-test');assert.equal(enabled(),true)
+  for(const value of ['false','','invalid']){process.env.DATA_COLLECTION_ENABLED=value;assert.equal(enabled(),false)}
+  process.env.DATA_COLLECTION_ENABLED='true'
+  for(const value of ['false','','invalid']){process.env.RETENTION_JOB_READY=value;assert.equal(enabled(),false)}
+  process.env.RETENTION_JOB_READY='true'
+  process.env.DATA_COLLECTION_ENABLED='false';assert.equal(enabled(),false)
   r=res();handler({method:'GET',url:'/api/config?diagnostics=1'} as any,r.response)
   const safe=JSON.stringify(r.get().value);for(const secret of ['sb_secret_server-secret-do-not-expose','sb_publishable_public-test','contact@example.com','https://plum-test.supabase.co'])assert.equal(safe.includes(secret),false)
   assert.equal(r.get().value.authReady,true);assert.equal(r.get().value.auth,undefined)

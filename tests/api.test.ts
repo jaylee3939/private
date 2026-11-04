@@ -11,13 +11,15 @@ test('Vercel routes fail closed, isolate admins and never return a service key',
  const old={...process.env},fetchBefore=globalThis.fetch
  try{
   process.env.SUPABASE_URL='https://plum-test.supabase.co';process.env.SUPABASE_ANON_KEY=`e30.${Buffer.from(JSON.stringify({role:'anon'})).toString('base64url')}.test`;process.env.SUPABASE_SERVICE_ROLE_KEY='sb_secret_server-only-test-key';process.env.DATA_COLLECTION_ENABLED='false';process.env.RETENTION_JOB_READY='true';process.env.PRIVACY_CONTACT='privacy@example.com';process.env.SITE_ORIGIN=origin
-  let r=response();await events({method:'POST',headers:{origin},body:payload()} as any,r.response);assert.equal(r.value().status,503)
+  const paths:string[]=[];globalThis.fetch=async(url:any)=>{paths.push(String(url));return new Response('null',{status:200})}
+  let r=response();await events({method:'POST',headers:{origin},body:payload()} as any,r.response);assert.equal(r.value().status,503);assert.equal(paths.length,0)
   process.env.DATA_COLLECTION_ENABLED='true'
   r=response();await events({method:'POST',headers:{origin:'https://wrong.example'},body:payload()} as any,r.response);assert.equal(r.value().status,403)
   r=response();await events({method:'POST',headers:{origin},body:{...payload(),consent:false}} as any,r.response);assert.equal(r.value().status,400)
-  const paths:string[]=[];globalThis.fetch=async(url:any)=>{paths.push(String(url));return new Response('null',{status:200})}
-  r=response();await events({method:'POST',headers:{origin},body:payload()} as any,r.response);assert.equal(r.value().status,503);assert.equal(paths.length,0) // explicit setup lock, even if the environment flag is true
-  r=response();config({method:'GET'} as any,r.response);assert.equal(JSON.stringify(r.value().body).includes('sb_secret_server-only-test-key'),false);assert.equal(r.value().body.collectionEnabled,false);assert.equal(r.value().body.collectionLocked,true);assert.equal(r.value().body.authReady,true)
+  r=response();await events({method:'POST',headers:{origin},body:payload()} as any,r.response);assert.equal(r.value().status,200);assert.equal(paths.length,1) // mocked storage only; production settings are never changed
+  process.env.DATA_COLLECTION_ENABLED='false'
+  r=response();await events({method:'POST',headers:{origin},body:payload()} as any,r.response);assert.equal(r.value().status,503);assert.equal(paths.length,1)
+  r=response();config({method:'GET'} as any,r.response);assert.equal(JSON.stringify(r.value().body).includes('sb_secret_server-only-test-key'),false);assert.equal(r.value().body.collectionEnabled,false);assert.equal(r.value().body.collectionLocked,false);assert.equal(r.value().body.authReady,true)
   process.env.SUPABASE_ANON_KEY='sb_secret_server-only-test-key';r=response();config({method:'GET'} as any,r.response);assert.equal(r.value().body.auth,null);process.env.SUPABASE_ANON_KEY=`e30.${Buffer.from('{"role":"anon"}').toString('base64url')}.test`
   r=response();await admin({method:'GET',headers:{},url:'/api/admin'} as any,r.response);assert.equal(r.value().status,401)
   globalThis.fetch=async(url:any)=>new Response(String(url).includes('/auth/v1/user')?JSON.stringify({id:'11111111-1111-4111-8111-111111111111'}):'[]',{status:200})

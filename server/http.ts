@@ -4,8 +4,9 @@ export type Response=ServerResponse
 export function json(res:Response,status:number,value:unknown){res.statusCode=status;res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.end(JSON.stringify(value))}
 export function env(name:string){return process.env[name]?.trim()||''}
 export type CheckState='missing'|'invalid'|'ready'|'present'|'server_key_rejected'|'enabled'|'disabled'|'public_key_rejected'|'project_mismatch'|'expired'
-// Deliberately locked while production configuration and administrator access are being verified.
-export const COLLECTION_RELEASE_READY=false
+// Operator confirmed retention active and storage verification PASS.
+// Collection still requires DATA_COLLECTION_ENABLED=true and all runtime prerequisites.
+export const COLLECTION_RELEASE_READY=true
 function projectURL(){
  try{const u=new URL(env('SUPABASE_URL'));if(u.protocol==='https:'&&/^[a-z0-9-]+\.supabase\.co$/.test(u.hostname)&&!u.username&&!u.password&&!u.port&&(u.pathname==='/'||u.pathname==='')&&!u.search&&!u.hash)return u.origin}catch{}
  return ''
