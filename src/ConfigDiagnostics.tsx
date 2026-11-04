@@ -1,6 +1,6 @@
 import type {PublicConfig} from './telemetry.ts'
 const names=['SUPABASE_URL','SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','SITE_ORIGIN','PRIVACY_CONTACT','RETENTION_JOB_READY','DATA_COLLECTION_ENABLED']
-const labels:Record<string,string>={missing:'서버에서 읽히지 않음',invalid:'형식 확인 필요',ready:'형식 확인됨',present:'입력됨 · 연결 검증 전',server_key_rejected:'공개용 칸에 서버 비밀키가 들어 있음',enabled:'true 설정',disabled:'false 설정'}
+const labels:Record<string,string>={public_key_rejected:'서버용 칸에 공개 키가 들어 있음',project_mismatch:'다른 프로젝트의 Legacy 키',expired:'Legacy 키 만료',missing:'서버에서 읽히지 않음',invalid:'형식 확인 필요',ready:'형식 확인됨',present:'입력됨 · 연결 검증 전',server_key_rejected:'공개용 칸에 서버 비밀키가 들어 있음',enabled:'true 설정',disabled:'false 설정'}
 export function configError(code?:string){
  if(!code)return ''
  if(code==='CONFIG_HTTP_404')return '설정 API를 찾지 못했어요(404). 최신 Production 배포에 api/config 함수가 포함됐는지 확인해 주세요.'

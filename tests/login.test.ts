@@ -6,10 +6,10 @@ function response(){let status=0,value:any;const headers:Record<string,string>={
 test('login uses public credentials only, guards origin, classifies failures and never reflects upstream secrets',async()=>{
  const old={...process.env},oldFetch=globalThis.fetch
  try{
-  process.env.SUPABASE_URL='https://login-test.supabase.co';process.env.SUPABASE_ANON_KEY='sb_publishable_test';process.env.SUPABASE_SERVICE_ROLE_KEY='test-only-private-key';process.env.SITE_ORIGIN=origin
+  process.env.SUPABASE_URL='https://login-test.supabase.co';process.env.SUPABASE_ANON_KEY='sb_publishable_test';process.env.SUPABASE_SERVICE_ROLE_KEY='sb_secret_test-only-private-key';process.env.SITE_ORIGIN=origin
   const req={method:'POST',headers:{origin},body:{email:' admin@example.com ',password:'test-only-password'}} as any
   let calls=0
-  globalThis.fetch=async(url,init)=>{calls++;assert.equal(String(url),'https://login-test.supabase.co/auth/v1/token?grant_type=password');assert.equal((init?.headers as any).apikey,'sb_publishable_test');assert.equal(JSON.stringify(init).includes('test-only-private-key'),false);assert.equal(JSON.parse(init?.body as string).email,'admin@example.com');return new Response(JSON.stringify({access_token:'test-only-token',expires_in:3600,refresh_token:'never-return'}),{status:200})}
+  globalThis.fetch=async(url,init)=>{calls++;assert.equal(String(url),'https://login-test.supabase.co/auth/v1/token?grant_type=password');assert.equal((init?.headers as any).apikey,'sb_publishable_test');assert.equal(JSON.stringify(init).includes('sb_secret_test-only-private-key'),false);assert.equal(JSON.parse(init?.body as string).email,'admin@example.com');return new Response(JSON.stringify({access_token:'test-only-token',expires_in:3600,refresh_token:'never-return'}),{status:200})}
   let r=response();await login({...req,headers:{}},r.res);assert.equal(r.get().status,403);assert.equal(calls,0)
   r=response();await login({...req,method:'GET'},r.res);assert.equal(r.get().status,405);assert.equal(calls,0)
   r=response();await login({...req,body:{email:'a',password:''}},r.res);assert.equal(r.get().status,400);assert.equal(calls,0)

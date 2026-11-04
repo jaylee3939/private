@@ -19,6 +19,8 @@ test('SQL executes, persists across reopen, isolates browser roles, deduplicates
    await assert.rejects(db.query("select public.plum_ingest('11111111-1111-4111-8111-111111111111'::uuid,'a','22222222-2222-4222-8222-222222222222'::uuid,'visit',null,null,null,'plum-responses-v1')"),(e:any)=>e.code==='42501')
    await db.exec('reset role')
   }
+  await db.exec(await readFile(new URL('../supabase/04_verify_without_collection.sql',import.meta.url),'utf8'))
+  assert.equal((await db.query<{n:number}>('select count(*)::int n from public.plum_sessions')).rows[0].n,0)
   const id=randomUUID(),visit=randomUUID(),hash='a'.repeat(64)
   const ingest=async(kind:string,event=randomUUID(),answers:object|null=null,question:string|null=null,result:string|null=null,h=hash)=>db.query('select public.plum_ingest($1::uuid,$2,$3::uuid,$4,$5::jsonb,$6,$7,$8)',[id,h,event,kind,answers?JSON.stringify(answers):null,question,result,'plum-responses-v1'])
   await db.exec('set role service_role')

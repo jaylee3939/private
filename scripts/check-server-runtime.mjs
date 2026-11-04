@@ -14,7 +14,7 @@ try{
  }
  process.env.SUPABASE_URL='https://plum-runtime-test.supabase.co'
  process.env.SUPABASE_ANON_KEY='sb_publishable_runtime-test'
- process.env.SUPABASE_SERVICE_ROLE_KEY='test-only-never-print'
+ process.env.SUPABASE_SERVICE_ROLE_KEY='sb_secret_test-only-never-print'
  process.env.DATA_COLLECTION_ENABLED='false'
  let r=response();await config({method:'GET',url:'/api/config?diagnostics=1'},r.res)
  assert.equal(r.get().status,200);assert.equal(r.get().value.configVersion,'plum-config-2');assert.equal(r.get().value.collectionEnabled,false);assert.equal(r.get().value.auth,undefined)
