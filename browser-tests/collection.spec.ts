@@ -5,7 +5,7 @@ const escape=(s:string)=>new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'))
 test('consent gates collection; full answers, withdrawal and refresh do not leak stored identity',async({page})=>{
  const events:any[]=[]
  await page.route('**/api/config',r=>r.fulfill({json:config}))
- await page.route('**/api/events',r=>{const e=r.request().postDataJSON();events.push(e);return r.fulfill({json:e.kind==='withdraw'?{deleted:true}:{stored:true,eventId:e.eventId}})})
+ await page.route('**/api/events',r=>{const e=r.request().postDataJSON();events.push(e);return r.fulfill({json:e.kind==='withdraw'?{deleted:true,eventId:e.eventId}:{stored:true,eventId:e.eventId}})})
  await page.goto('/')
  await expect(page.getByRole('checkbox',{name:/익명 참여 통계/})).toBeVisible()
  await page.getByRole('checkbox',{name:/만 19세 이상/}).check();await page.waitForTimeout(100);expect(events).toHaveLength(0)
