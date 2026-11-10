@@ -1,7 +1,10 @@
 import * as React from 'react'
 import PlumType from './PlumType.tsx'
+import {defaultContent,contentProps,loadPublicContent} from './content.ts'
 import {getConfig,fallbackConfig,Participation} from './telemetry.ts'
 export default function PublicQuiz(){
+ const [content,setContent]=React.useState(defaultContent)
+ React.useEffect(()=>{let alive=true;void loadPublicContent().then(d=>{if(alive)setContent(d.content)});return()=>{alive=false}},[])
  const [config,setConfig]=React.useState(fallbackConfig),[adult,setAdult]=React.useState(false),[consent,setConsent]=React.useState(false),[notice,setNotice]=React.useState(''),[withdrawFailed,setWithdrawFailed]=React.useState(false),[withdrawing,setWithdrawing]=React.useState(false)
  const tracker=React.useRef<Participation|null>(null);if(!tracker.current)tracker.current=new Participation(setNotice)
  const active=React.useRef(false)
@@ -14,5 +17,5 @@ export default function PublicQuiz(){
  {withdrawFailed&&<button className="plum-text" disabled={withdrawing} onClick={()=>{setWithdrawing(true);void tracker.current!.revoke().then(ok=>{setWithdrawFailed(!ok);setWithdrawing(false)})}}>현재 참여 기록 삭제 재시도</button>}
  <p className="plum-note" aria-live="polite">{notice}</p>
  </div>
- return <PlumType collectionControls={controls} onAdultChange={setAdult} onQuizStart={()=>{if(active.current)tracker.current!.start()}} onQuizAnswer={(answers,id)=>{if(active.current)tracker.current!.answer(answers,id)}} onQuizComplete={answers=>{if(active.current)tracker.current!.complete(answers)}} onQuizReset={()=>{active.current=false;tracker.current!.close();setConsent(false);setAdult(false);setNotice('')}} introStorageNotice={config.collectionEnabled?'답변은 화면 메모리에서 사용하며 새로고침하면 테스트 진행은 초기화돼요.\n별도 수집에 동의하면 익명 참여 기록과 질문별 최종 선택·결과를 서버에 90일 보관해요. 새로고침이나 재배포로 서버 기록이 지워지지는 않아요.':'현재 참여 통계 수집은 꺼져 있어요.\n답변은 화면 메모리에서만 사용하며 새로고침하면 사라집니다. 동점이면 추가 질문이 나와요.'}/>
+ return <PlumType {...contentProps(content)} collectionControls={controls} onAdultChange={setAdult} onQuizStart={()=>{if(active.current)tracker.current!.start()}} onQuizAnswer={(answers,id)=>{if(active.current)tracker.current!.answer(answers,id)}} onQuizComplete={answers=>{if(active.current)tracker.current!.complete(answers)}} onQuizReset={()=>{active.current=false;tracker.current!.close();setConsent(false);setAdult(false);setNotice('')}} introStorageNotice={config.collectionEnabled?'답변은 화면 메모리에서 사용하며 새로고침하면 테스트 진행은 초기화돼요.\n별도 수집에 동의하면 익명 참여 기록과 질문별 최종 선택·결과를 서버에 90일 보관해요. 새로고침이나 재배포로 서버 기록이 지워지지는 않아요.':'현재 참여 통계 수집은 꺼져 있어요.\n답변은 화면 메모리에서만 사용하며 새로고침하면 사라집니다. 동점이면 추가 질문이 나와요.'}/>
 }
