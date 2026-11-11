@@ -1,12 +1,12 @@
 # PLUM 저장 진단 및 1회 확인
 
-이 변경은 기존 문항·디자인·결과·채점을 바꾸지 않습니다. SQL·환경변수 재설정은 필요하지 않습니다. 운영 데이터 삭제/초기화 SQL은 없습니다. 브라우저 테스트의 합성 데이터는 폐기되는 로컬 PostgreSQL에만 들어갑니다.
+이 변경은 기존 문항·디자인·결과·채점을 바꾸지 않습니다. 기존 SQL·환경변수를 재설정하지 않습니다. 새 자동 저장·공유 확장은 PARTICIPATION_FLOW_SETUP_KO.md의 추가 SQL 06만 적용합니다. 운영 데이터 삭제/초기화 SQL은 없습니다. 브라우저 테스트의 합성 데이터는 폐기되는 로컬 PostgreSQL에만 들어갑니다.
 
 ## 배포 후 한 번 확인
 
 1. Vercel의 최신 커밋이 Ready인지 확인하고 공개 테스트를 새로고침합니다.
 2. 성인 확인과 선택 수집 동의를 모두 체크한 뒤 18문항(필요하면 동점 질문)을 완료합니다.
-3. 결과 화면에서 **참여 통계 저장을 완료했어요. (complete 확인)** 메시지를 기다립니다. 결과 유형만 보인 것은 저장 성공을 뜻하지 않습니다. 서버는 저장 함수의 HTTP 성공만 믿지 않고 세션·현재 이벤트·답변 행과 완료 결과를 DB에서 다시 읽어 비교합니다. 클라이언트도 verified=true와 일치하는 eventId가 없으면 성공으로 표시하지 않습니다.
+3. 결과 화면에서 **참여 통계 저장을 완료했어요.** 메시지를 기다립니다. 결과 유형만 보인 것은 저장 성공을 뜻하지 않습니다. 서버는 저장 함수의 HTTP 성공만 믿지 않고 세션·현재 이벤트·답변 행과 완료 결과를 DB에서 다시 읽어 비교합니다. 클라이언트도 verified=true와 일치하는 eventId가 없으면 성공으로 표시하지 않습니다.
 4. /admin에서 한국 시간 기준 오늘을 포함한 기간으로 통계를 새로고침합니다. 완료 세션이 하나 늘고 해당 결과에 반영되는지 확인합니다. 통계는 실제 사람 수가 아니라 동의한 참여 세션 수입니다.
 5. 실패 안내가 보이면 안내 끝의 `[단계 · HTTP 상태 · 오류 코드 · 조회용 ID]`만 전달합니다. Payload, 토큰, 원본 응답, 비밀키는 보내지 않습니다.
 
@@ -26,6 +26,7 @@ Vercel → 프로젝트 → Logs에서 안내의 조회용 ID를 검색합니다
 | VISIT_REQUIRED / START_REQUIRED | 선행 세션/시작 저장 단계 |
 | DATABASE_DNS_FAILED / DATABASE_TIMEOUT | Vercel → Supabase 연결 |
 | DATABASE_RESPONSE_INVALID | Supabase 응답이 예상 JSON이 아님 |
+| PARTICIPATION_SETUP_REQUIRED / SHARE_SETUP_REQUIRED | 새 확장 SQL 06 적용 여부 확인 (기존 SQL 재실행 아님) |
 | SESSION_NOT_CONFIRMED / EVENT_NOT_CONFIRMED | 저장 응답 후 세션/이벤트 행 확인 실패 |
 | START_NOT_CONFIRMED / COMPLETION_NOT_CONFIRMED / ANSWERS_NOT_CONFIRMED | 시작 시각·완료 결과·답변 스냅샷의 DB 재조회 검증 실패 |
 | METRICS_NOT_CONFIRMED | 집계 RPC와 테이블의 실제 기간별 건수가 불일치. 숫자를 0으로 대신 표시하지 않음 |

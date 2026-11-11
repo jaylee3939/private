@@ -58,7 +58,7 @@ async function dbResponse(path:string,init:RequestInit={}){
  if(!response.ok){
   const problem=await response.json().catch(()=>null)
   const databaseCode=typeof problem?.code==='string'&&/^(?:[0-9A-Z]{5}|PGRST[0-9]{3})$/.test(problem.code)?problem.code:undefined
-  const reasons:Record<string,string>={'Visit required':'VISIT_REQUIRED','Start required':'START_REQUIRED','Invalid session':'SESSION_REJECTED','Incomplete quiz':'INCOMPLETE_QUIZ','Tie answer required':'TIE_ANSWER_REQUIRED','Result mismatch':'RESULT_MISMATCH','New session rate limit':'SESSION_RATE_LIMIT','Session event limit':'EVENT_RATE_LIMIT','Already completed':'ALREADY_COMPLETED'}
+  const reasons:Record<string,string>={'Visit required':'VISIT_REQUIRED','Start required':'START_REQUIRED','Invalid session':'SESSION_REJECTED','Incomplete quiz':'INCOMPLETE_QUIZ','Tie answer required':'TIE_ANSWER_REQUIRED','Result mismatch':'RESULT_MISMATCH','New session rate limit':'SESSION_RATE_LIMIT','Session event limit':'EVENT_RATE_LIMIT','Already completed':'ALREADY_COMPLETED','Share consent required':'SHARE_CONSENT_REQUIRED','Completion required':'COMPLETION_REQUIRED','Consent version mismatch':'CONSENT_VERSION_MISMATCH','Share limit':'SHARE_RATE_LIMIT'}
   const reason=typeof problem?.message==='string'?reasons[problem.message]:undefined
   throw new DatabaseError(response.status,reason,databaseCode)
  }

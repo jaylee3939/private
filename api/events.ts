@@ -24,9 +24,14 @@ export default async function handler(req:Request,res:Response){
    console.info(JSON.stringify({scope:'plum.events',requestId,stage,outcome:'deleted',verified:true}))
    return json(res,200,{deleted:true,verified:true,eventId:e.eventId,requestId})
   }
-  await db('/rest/v1/rpc/plum_ingest',{method:'POST',body:JSON.stringify({p_session:e.sessionId,p_hash:hash,p_event:e.eventId,p_kind:e.kind,p_answers:e.answers??null,p_question:e.questionId??null,p_result:result,p_consent:e.consentVersion})})
-  await verifyStoredEvent(e,hash,result)
+  const receipt=e.kind==='share'?null:await db('/rest/v1/rpc/plum_ingest_v3',{method:'POST',body:JSON.stringify({p_session:e.sessionId,p_hash:hash,p_event:e.eventId,p_kind:e.kind,p_answers:e.answers??null,p_question:e.questionId??null,p_result:result,p_consent:e.consentVersion,p_visit_event:stableId(e.sessionId,'visit'),p_start_event:stableId(e.sessionId,'start')})})
+  if(e.kind==='share')await db('/rest/v1/rpc/plum_record_share',{method:'POST',body:JSON.stringify({p_session:e.sessionId,p_hash:hash,p_event:e.eventId})})
+  const storedEventId=e.kind==='share'?e.eventId:receipt?.event_id
+  if(typeof storedEventId!=='string'||!/^[a-f0-9-]{36}$/i.test(storedEventId))return fail(503,'INVALID_STORAGE_RECEIPT')
+  await verifyStoredEvent({...e,eventId:storedEventId},hash,result)
   console.info(JSON.stringify({scope:'plum.events',requestId,stage,outcome:'stored',verified:true}))
   return json(res,200,{stored:true,verified:true,eventId:e.eventId,requestId})
- }catch(error){const {errorCode,...details}=databaseFailure(error);return fail(503,errorCode,details)}
+ }catch(error){const {errorCode,...details}=databaseFailure(error);return fail(503,('databaseCode' in details&&details.databaseCode==='PGRST202')?(stage==='share'?'SHARE_SETUP_REQUIRED':'PARTICIPATION_SETUP_REQUIRED'):errorCode,details)}
 }
+
+function stableId(session:string,kind:string){const h=createHash('sha256').update(`plum-v3:${session}:${kind}`).digest('hex').slice(0,32).split('');h[12]='4';h[16]='8';const s=h.join('');return `${s.slice(0,8)}-${s.slice(8,12)}-${s.slice(12,16)}-${s.slice(16,20)}-${s.slice(20)}`}

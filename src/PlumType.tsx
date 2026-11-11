@@ -5,10 +5,10 @@ import { mockAPI, analytics } from "./api.ts"
 type Research = NonNullable<Parameters<typeof mockAPI.submit>[0]["research"]>
 
 export type ResultCopy = {displayCode?:string;name?:string;title?:string;description?:string;keywords?:string[]}
-export type PlumProps = {buttonLabels?:{next?:string;result?:string;back?:string;share?:string;download?:string;restart?:string};collectionControls?:React.ReactNode;onAdultChange?:(adult:boolean)=>void;onQuizStart?:()=>void;onQuizAnswer?:(answers:Answers,questionId:string)=>void;onQuizComplete?:(answers:Answers)=>void;onQuizReset?:()=>void;questionCopy?:Record<string,QuestionCopy>;randomizeQuestions?:boolean;headlineLine1?:string;headlineLine2?:string;eyebrowLayer?:React.ReactNode;headlineLayer?:React.ReactNode;introTitleLayer?:React.ReactNode;introDescriptionLayer?:React.ReactNode;footerLayer?:React.ReactNode;characterUrl?:string; characterAlt?:string; resultAssets?:Partial<Record<ResultCode,string>>; resultCopy?:Partial<Record<ResultCode,ResultCopy>>; shareBaseUrl?:string; analyticsEnabled?:boolean; style?:React.CSSProperties; orange?:string;cream?:string;wine?:string;ink?:string;codeIntroTitle?:string;codeIntroDescription?:string;introEyebrow?:string;introTitle?:string;introDescription?:string;introAdultNotice?:string;introStorageNotice?:string;startLabel?:string;footerText?:string}
+export type PlumProps = {buttonLabels?:{next?:string;result?:string;back?:string;share?:string;download?:string;restart?:string};collectionControls?:React.ReactNode;onAdultChange?:(adult:boolean)=>void;onQuizStart?:()=>void;onQuizShare?:()=>void;onQuizAnswer?:(answers:Answers,questionId:string)=>void;onQuizComplete?:(answers:Answers)=>void;onQuizReset?:()=>void;questionCopy?:Record<string,QuestionCopy>;randomizeQuestions?:boolean;headlineLine1?:string;headlineLine2?:string;eyebrowLayer?:React.ReactNode;headlineLayer?:React.ReactNode;introTitleLayer?:React.ReactNode;introDescriptionLayer?:React.ReactNode;footerLayer?:React.ReactNode;characterUrl?:string; characterAlt?:string; resultAssets?:Partial<Record<ResultCode,string>>; resultCopy?:Partial<Record<ResultCode,ResultCopy>>; shareBaseUrl?:string; analyticsEnabled?:boolean; style?:React.CSSProperties; orange?:string;cream?:string;wine?:string;ink?:string;codeIntroTitle?:string;codeIntroDescription?:string;introEyebrow?:string;introTitle?:string;introDescription?:string;introAdultNotice?:string;introStorageNotice?:string;startLabel?:string;footerText?:string}
 /** @framerSupportedLayoutWidth any
  * @framerSupportedLayoutHeight auto */
-export default function PlumType({buttonLabels={},collectionControls,onAdultChange,onQuizStart,onQuizAnswer,onQuizComplete,onQuizReset,codeIntroTitle="PLUM CODE란?",codeIntroDescription="탐색 스타일, 설렘 스타일, 즐기는 방식. 세 가지 취향을 조합한 나의 3글자 코드예요. 정답도 우열도 없어요.",questionCopy={},randomizeQuestions=false,headlineLine1="MY PACE.",headlineLine2="MY PLUM.",eyebrowLayer,headlineLayer,introTitleLayer,introDescriptionLayer,footerLayer,characterUrl,characterAlt="PLUM 공식 캐릭터",resultAssets={},resultCopy={},shareBaseUrl="",analyticsEnabled=false,style,orange="#F36B38",cream="#FFF0D8",wine="#8A3141",ink="#292522",introEyebrow="나를 알아가는 가장 가벼운 시작",introTitle="내가 편안해지는 방식,\n어떤 PLUM일까요?",introDescription="감각, 분위기, 나만의 리듬.\n정답 없이 지금의 나를 골라 보세요.",introAdultNotice="만 19세 이상을 위한 가벼운 자기 탐색 콘텐츠예요. 의학적·심리적 진단이나 검증된 성격 검사가 아니며, 건강 상태 또는 성적 선호를 판단하지 않아요.",introStorageNotice="답변은 이 화면의 메모리에서만 사용해요.\n새로고침하면 사라집니다. 동점이면 추가 질문이 나와요.",startLabel="내 PLUM TYPE 찾기",footerText="PLEASURE, AT YOUR PACE."}:PlumProps) {
+export default function PlumType({buttonLabels={},collectionControls,onAdultChange,onQuizStart,onQuizShare,onQuizAnswer,onQuizComplete,onQuizReset,codeIntroTitle="PLUM CODE란?",codeIntroDescription="탐색 스타일, 설렘 스타일, 즐기는 방식. 세 가지 취향을 조합한 나의 3글자 코드예요. 정답도 우열도 없어요.",questionCopy={},randomizeQuestions=false,headlineLine1="MY PACE.",headlineLine2="MY PLUM.",eyebrowLayer,headlineLayer,introTitleLayer,introDescriptionLayer,footerLayer,characterUrl,characterAlt="PLUM 공식 캐릭터",resultAssets={},resultCopy={},shareBaseUrl="",analyticsEnabled=false,style,orange="#F36B38",cream="#FFF0D8",wine="#8A3141",ink="#292522",introEyebrow="나를 알아가는 가장 가벼운 시작",introTitle="내가 편안해지는 방식,\n어떤 PLUM일까요?",introDescription="감각, 분위기, 나만의 리듬.\n정답 없이 지금의 나를 골라 보세요.",introAdultNotice="만 19세 이상을 위한 가벼운 자기 탐색 콘텐츠예요. 의학적·심리적 진단이나 검증된 성격 검사가 아니며, 건강 상태 또는 성적 선호를 판단하지 않아요.",introStorageNotice="답변은 이 화면의 메모리에서만 사용해요.\n새로고침하면 사라집니다. 동점이면 추가 질문이 나와요.",startLabel="내 PLUM TYPE 찾기",footerText="PLEASURE, AT YOUR PACE."}:PlumProps) {
  const [questionOrder,setQuestionOrder]=React.useState(questions.map(q=>q.id))
  const [downloading,setDownloading]=React.useState(false)
  const [stage,setStage]=React.useState<"intro"|"quiz"|"result">("intro")
@@ -37,10 +37,16 @@ export default function PlumType({buttonLabels={},collectionControls,onAdultChan
  const resultCode=shared??code
  const result=resultCode?{...results[resultCode],...resultCopy[resultCode],keywords:(resultCopy[resultCode]?.keywords?.length===3?resultCopy[resultCode]!.keywords!:results[resultCode].keywords)}:null
  const currentAsset=resultCode?(resultAssets[resultCode]||characterUrl):characterUrl
+ const lifecycle=React.useRef({started:false,completed:false})
+ const callbacks=React.useRef({onQuizStart,onQuizComplete});callbacks.current={onQuizStart,onQuizComplete}
+ React.useEffect(()=>{
+  if(stage==='quiz'&&!lifecycle.current.started){lifecycle.current.started=true;analytics('quiz_start',analyticsEnabled);callbacks.current.onQuizStart?.()}
+  if(stage==='result'&&!shared&&code&&!lifecycle.current.completed){lifecycle.current.completed=true;analytics('quiz_complete',analyticsEnabled);callbacks.current.onQuizComplete?.(answers)}
+ },[stage,shared,code])
  function emit(e:Parameters<typeof analytics>[0]){analytics(e,analyticsEnabled)}
  function start(){
   const next:Record<string,boolean>={}; for(const q of [...questions,...Object.values(supplements)])next[q.id]=Math.random()<.5
-  setQuestionOrder(randomizeQuestions?shuffledQuestionIds(questions.map(q=>q.id)):questions.map(q=>q.id));setFlips(next);setAnswers({});setShared(null);setLegacyShared(false);setIndex(0);setStage("quiz");setMessage("");emit("quiz_start");onQuizStart?.()
+  setQuestionOrder(randomizeQuestions?shuffledQuestionIds(questions.map(q=>q.id)):questions.map(q=>q.id));setFlips(next);setAnswers({});setShared(null);setLegacyShared(false);setIndex(0);setStage("quiz");setMessage("")
  }
  function choose(p:Answers[string]) {
   const next={...answers,[current.id]:p}
@@ -49,16 +55,16 @@ export default function PlumType({buttonLabels={},collectionControls,onAdultChan
  }
  function next(){
   if(!answers[current.id])return
-  if(index===queue.length-1 && code){setStage("result");emit("quiz_complete");onQuizComplete?.(answers)}
+  if(index===queue.length-1 && code){setStage("result")}
   else setIndex(i=>i+1)
  }
- function restart(){setStage("intro");setAdult(false);setShared(null);setLegacyShared(false);setAnswers({});setResearchOpen(false);setResearchConsent(false);setMarketingConsent(false);setResearch({interests:[],barrier:"",price:""});setEmail("");setSubmitted(false);setMessage("");emit("quiz_restart");onQuizReset?.()}
+ function restart(){lifecycle.current={started:false,completed:false};setStage("intro");setAdult(false);setShared(null);setLegacyShared(false);setAnswers({});setResearchOpen(false);setResearchConsent(false);setMarketingConsent(false);setResearch({interests:[],barrier:"",price:""});setEmail("");setSubmitted(false);setMessage("");emit("quiz_restart");onQuizReset?.()}
  function shareURL(){
   const u=new URL(shareBaseUrl||window.location.href,window.location.href)
   if(!["https:","http:"].includes(u.protocol))throw new Error("Invalid share URL")
   u.search="";u.hash=`plum=${resultCode}`;return u.toString()
  }
- async function share(){try{await navigator.clipboard.writeText(shareURL());setMessage("링크를 복사했어요. 링크에는 결과 유형만 포함돼요.");emit("share_click")}catch{setMessage("아래 링크를 선택해 직접 복사해 주세요.")}}
+ async function share(){try{await navigator.clipboard.writeText(shareURL());setMessage("링크를 복사했어요. 링크에는 결과 유형만 포함돼요.");emit("share_click");if(!shared)onQuizShare?.()}catch{setMessage("아래 링크를 선택해 직접 복사해 주세요.")}}
  async function download(){
   if(!result || !resultCode || downloading)return
   setDownloading(true)
@@ -90,7 +96,7 @@ export default function PlumType({buttonLabels={},collectionControls,onAdultChan
    ctx.fillStyle=ink;ctx.font="22px sans-serif";ctx.fillText("19+ · MY PACE. MY PLUM. · 진단이 아닌 가벼운 자기 탐색",70,1820)
    const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error("Export failed")),"image/png"))
    const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`PLUM-${resultCode}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
-   setMessage(currentAsset?"공식 이미지와 나의 이야기가 담긴 카드를 다운로드했어요.":"카드를 다운로드했어요. 공식 이미지가 아직 연결되지 않아 자리 표시자가 포함돼요.");emit("card_download")
+   setMessage(currentAsset?"공식 이미지와 나의 이야기가 담긴 카드를 다운로드했어요.":"카드를 다운로드했어요. 공식 이미지가 아직 연결되지 않아 자리 표시자가 포함돼요.")
   }catch{setMessage("이미지를 불러오거나 카드를 저장하지 못했어요. Framer Assets의 이미지 주소와 다운로드 허용 설정을 확인해 주세요.")}
   finally{setDownloading(false)}
  }
