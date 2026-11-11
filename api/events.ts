@@ -1,3 +1,4 @@
+import {verifyStoredEvent} from '../server/storage-verification.js'
 import {createHash,randomUUID} from 'node:crypto'
 import {json,body,enabled,sameOrigin,db,databaseFailure,type Request,type Response} from '../server/http.js'
 import {validate} from '../server/events.js'
@@ -16,13 +17,16 @@ export default async function handler(req:Request,res:Response){
  if(data.event.kind!=='withdraw'&&!enabled())return fail(503,'COLLECTION_DISABLED')
  try{
   const {event:e,result}=data
+  const hash=createHash('sha256').update(e.token).digest('hex')
   if(e.kind==='withdraw'){
-   await db('/rest/v1/rpc/plum_withdraw',{method:'POST',body:JSON.stringify({p_session:e.sessionId,p_hash:createHash('sha256').update(e.token).digest('hex')})})
-   console.info(JSON.stringify({scope:'plum.events',requestId,stage,outcome:'deleted'}))
-   return json(res,200,{deleted:true,eventId:e.eventId,requestId})
+   await db('/rest/v1/rpc/plum_withdraw',{method:'POST',body:JSON.stringify({p_session:e.sessionId,p_hash:hash})})
+   await verifyStoredEvent(e,hash,result)
+   console.info(JSON.stringify({scope:'plum.events',requestId,stage,outcome:'deleted',verified:true}))
+   return json(res,200,{deleted:true,verified:true,eventId:e.eventId,requestId})
   }
-  await db('/rest/v1/rpc/plum_ingest',{method:'POST',body:JSON.stringify({p_session:e.sessionId,p_hash:createHash('sha256').update(e.token).digest('hex'),p_event:e.eventId,p_kind:e.kind,p_answers:e.answers??null,p_question:e.questionId??null,p_result:result,p_consent:e.consentVersion})})
-  console.info(JSON.stringify({scope:'plum.events',requestId,stage,outcome:'stored'}))
-  return json(res,200,{stored:true,eventId:e.eventId,requestId})
+  await db('/rest/v1/rpc/plum_ingest',{method:'POST',body:JSON.stringify({p_session:e.sessionId,p_hash:hash,p_event:e.eventId,p_kind:e.kind,p_answers:e.answers??null,p_question:e.questionId??null,p_result:result,p_consent:e.consentVersion})})
+  await verifyStoredEvent(e,hash,result)
+  console.info(JSON.stringify({scope:'plum.events',requestId,stage,outcome:'stored',verified:true}))
+  return json(res,200,{stored:true,verified:true,eventId:e.eventId,requestId})
  }catch(error){const {errorCode,...details}=databaseFailure(error);return fail(503,errorCode,details)}
 }

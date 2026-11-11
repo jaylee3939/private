@@ -1,0 +1,36 @@
+import type {PGlite} from '@electric-sql/pglite'
+// PostgREST transport substitute backed by actual local SQL, never a live project.
+export function participationTransport(db:PGlite,userId:string):typeof fetch{return async(url,init)=>{
+ const u=new URL(String(url)),path=u.pathname,p=typeof init?.body==='string'?JSON.parse(init.body):null
+ if(path==='/auth/v1/user')return new Response(JSON.stringify({id:userId}))
+ if(path==='/rest/v1/plum_admins')return new Response(JSON.stringify((await db.query('select user_id from public.plum_admins where user_id=$1::uuid',[userId])).rows))
+ if(path==='/rest/v1/rpc/plum_metrics')return new Response(JSON.stringify((await db.query<{m:unknown}>('select public.plum_metrics($1::date,$2::date) m',[p.p_from,p.p_to])).rows[0].m))
+ if(path==='/rest/v1/rpc/plum_ingest'){
+  await db.query('select public.plum_ingest($1::uuid,$2,$3::uuid,$4,$5::jsonb,$6,$7,$8)',[p.p_session,p.p_hash,p.p_event,p.p_kind,p.p_answers?JSON.stringify(p.p_answers):null,p.p_question,p.p_result,p.p_consent]);return new Response(null,{status:204})
+ }
+ if(path==='/rest/v1/rpc/plum_withdraw'){await db.query('select public.plum_withdraw($1::uuid,$2)',[p.p_session,p.p_hash]);return new Response(null,{status:204})}
+ if(path==='/rest/v1/plum_sessions'){
+  const sid=u.searchParams.get('id')?.slice(3)
+  if(u.searchParams.get('select')?.includes('plum_events')){
+   const sessions=(await db.query<any>('select id,token_hash,started_at,completed_at,result_code from public.plum_sessions where id=$1::uuid',[sid])).rows
+   for(const s of sessions){s.plum_events=(await db.query('select id,kind from public.plum_events where session_id=$1::uuid and id=$2::uuid',[sid,u.searchParams.get('plum_events.id')!.slice(3)])).rows;s.plum_answers=(await db.query('select question_id,pole from public.plum_answers where session_id=$1::uuid',[sid])).rows}
+   return new Response(JSON.stringify(sessions))
+  }
+  if(u.searchParams.get('order'))return new Response(JSON.stringify((await db.query('select created_at from public.plum_sessions order by created_at desc limit 1')).rows))
+  const where:string[]=[],args:unknown[]=[]
+  if(sid){args.push(sid);where.push(`id=$${args.length}::uuid`)}
+  for(const column of ['created_at','started_at'])for(const filter of u.searchParams.getAll(column)){
+   const op=filter.slice(0,3),value=filter.slice(op==='gte'?4:3);if(op!=='gte'&&!filter.startsWith('lt.'))throw Error('Unexpected date filter')
+   args.push(value);where.push(`${column}${op==='gte'?'>=':'<'}$${args.length}::timestamptz`)
+  }
+  if(u.searchParams.get('completed_at')==='not.is.null')where.push('completed_at is not null')
+  const clause=where.length?' where '+where.join(' and '):''
+  const rows=(await db.query(`select id from public.plum_sessions${clause} limit 1`,args)).rows
+  if((init?.headers as Record<string,string>)?.Prefer==='count=exact'){
+   const n=(await db.query<{n:number}>(`select count(*)::int n from public.plum_sessions${clause}`,args)).rows[0].n
+   return new Response(JSON.stringify(rows),{headers:{'Content-Range':n?`0-0/${n}`:'*/0'}})
+  }
+  return new Response(JSON.stringify(rows))
+ }
+ throw Error('Unexpected synthetic participation endpoint')
+}}

@@ -1,3 +1,4 @@
+import {participationTransport} from '../tests/participation-db.ts'
 import {test,expect} from '@playwright/test'
 import {readFile} from 'node:fs/promises'
 import {randomUUID} from 'node:crypto'
@@ -16,17 +17,7 @@ test('BMR browser flow stores through actual API and SQL, then actual admin API 
   await db.query('insert into auth.users(id,email) values($1::uuid,$2)',[userId,'synthetic@example.com'])
   await db.query('insert into public.plum_admins(user_id) values($1::uuid)',[userId]);await db.exec('set role service_role')
   Object.assign(process.env,{SUPABASE_URL:'https://synthetic-local.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_synthetic',SUPABASE_SERVICE_ROLE_KEY:'sb_secret_synthetic',DATA_COLLECTION_ENABLED:'true',RETENTION_JOB_READY:'true',PRIVACY_CONTACT:'synthetic@example.com',SITE_ORIGIN:'http://127.0.0.1:5173'})
-  globalThis.fetch=async(url,init)=>{
-   const path=new URL(String(url)).pathname,p=init?.body?JSON.parse(String(init.body)):null
-   if(path==='/auth/v1/user')return new Response(JSON.stringify({id:userId}))
-   if(path==='/rest/v1/plum_admins')return new Response(JSON.stringify((await db.query('select user_id from public.plum_admins where user_id=$1::uuid',[userId])).rows))
-   if(path==='/rest/v1/rpc/plum_metrics')return new Response(JSON.stringify((await db.query<{m:unknown}>('select public.plum_metrics($1::date,$2::date) m',[p.p_from,p.p_to])).rows[0].m))
-   if(path==='/rest/v1/rpc/plum_ingest'){
-    await db.query('select public.plum_ingest($1::uuid,$2,$3::uuid,$4,$5::jsonb,$6,$7,$8)',[p.p_session,p.p_hash,p.p_event,p.p_kind,p.p_answers?JSON.stringify(p.p_answers):null,p.p_question,p.p_result,p.p_consent])
-    return new Response(null,{status:204})
-   }
-   throw Error('Unexpected synthetic transport route')
-  }
+  globalThis.fetch=participationTransport(db,userId)
   const config={collectionEnabled:true,collectionLocked:false,consentVersion:'plum-responses-v1',retentionDays:90,privacyContact:'synthetic@example.com',auth:{url:'https://synthetic-local.supabase.co',key:'sb_publishable_synthetic'}}
   await page.route('**/api/config',r=>r.fulfill({json:config}))
   await page.route('**/api/events',async route=>{

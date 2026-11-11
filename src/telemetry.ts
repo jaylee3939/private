@@ -29,10 +29,11 @@ export class Participation {
    try{
     const r=await fetch('/api/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),keepalive:true,signal:AbortSignal.timeout(10000)})
     const value=await r.json().catch(()=>null)
-    if(r.ok&&value?.eventId===event.eventId&&(event.kind==='withdraw'?value.deleted===true:value.stored===true)){this.lastFailure='';return true}
+    if(r.ok&&value?.verified===true&&value?.eventId===event.eventId&&(event.kind==='withdraw'?value.deleted===true:value.stored===true)){this.lastFailure='';return true}
     const code=!r.ok&&typeof value?.errorCode==='string'&&/^[A-Z][A-Z0-9_]{0,63}$/.test(value.errorCode)?value.errorCode:r.ok?'INVALID_STORAGE_ACK':'STORAGE_HTTP_ERROR'
+    const databaseCode=typeof value?.databaseCode==='string'&&/^(?:[0-9A-Z]{5}|PGRST[0-9]{3})$/.test(value.databaseCode)?value.databaseCode:''
     const requestId=typeof value?.requestId==='string'&&/^[a-f0-9-]{36}$/i.test(value.requestId)?value.requestId:''
-    this.lastFailure=` [${event.kind} · HTTP ${r.status} · ${code}${requestId?' · '+requestId:''}]`
+    this.lastFailure=` [${event.kind} · HTTP ${r.status} · ${code}${databaseCode?' · DB '+databaseCode:''}${requestId?' · '+requestId:''}]`
     console.warn('PLUM storage', {stage:event.kind,status:r.status,errorCode:code,...(requestId?{requestId}:{})})
     if(r.status===400||r.status===403||code==='COLLECTION_DISABLED')return false
    }catch(error){

@@ -10,7 +10,7 @@ import upload from '../.server-build/api/upload.js'
 const before={...process.env},originalFetch=globalThis.fetch
 function response(){let status=0,value;return {res:{set statusCode(n){status=n},setHeader(){},end(body){value=JSON.parse(body)}},get:()=>({status,value})}}
 try{
- for(const file of ['api/config.js','api/admin.js','api/events.js','api/login.js','api/content.js','api/upload.js','server/admin-auth.js','src/content.js','server/http.js','server/events.js']){
+ for(const file of ['api/config.js','api/admin.js','api/events.js','api/login.js','api/content.js','api/upload.js','server/admin-auth.js','server/storage-verification.js','src/content.js','server/http.js','server/events.js']){
   const source=await readFile(new URL(`../.server-build/${file}`,import.meta.url),'utf8')
   assert.equal(/(?:from\s*["']|import\s*\(\s*["'])[^"']+\.tsx?["']/.test(source),false,`TS runtime import in ${file}`)
  }

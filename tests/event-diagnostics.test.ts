@@ -1,6 +1,6 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
-import {randomUUID} from 'node:crypto'
+import {createHash,randomUUID} from 'node:crypto'
 import events from '../api/events.ts'
 const origin='https://private-atv6.vercel.app'
 function response(){let status=0,value:any;return {res:{set statusCode(n:number){status=n},setHeader(){},end(s:string){value=JSON.parse(s)}} as any,get:()=>({status,value})}}
@@ -22,7 +22,8 @@ test('storage failures distinguish origin, consent, disabled collection, RPC per
   globalThis.fetch=async()=>new Response(JSON.stringify({code:'P0001',message:'Start required'}),{status:400});r=response();await events(req,r.res);assert.equal(r.get().value.errorCode,'START_REQUIRED')
   globalThis.fetch=async()=>{throw new TypeError('secret',{cause:{code:'ENOTFOUND'}})};r=response();await events(req,r.res);assert.equal(r.get().value.errorCode,'DATABASE_DNS_FAILED')
   globalThis.fetch=async()=>new Response('<html>wrong response</html>');r=response();await events(req,r.res);assert.equal(r.get().value.errorCode,'DATABASE_RESPONSE_INVALID')
-  globalThis.fetch=async()=>new Response(null,{status:204});r=response();await events(req,r.res);assert.equal(r.get().status,200);assert.equal(r.get().value.stored,true);assert.equal(r.get().value.eventId,input.eventId)
+  globalThis.fetch=async(url)=>String(url).includes('/rpc/')?new Response(null,{status:204}):new Response('[]');r=response();await events(req,r.res);assert.equal(r.get().value.errorCode,'SESSION_NOT_CONFIRMED')
+  globalThis.fetch=async(url)=>String(url).includes('/rpc/')?new Response(null,{status:204}):new Response(JSON.stringify([{id:input.sessionId,token_hash:createHash('sha256').update(input.token).digest('hex'),started_at:null,completed_at:null,plum_events:[{id:input.eventId,kind:'visit'}],plum_answers:[]}]));r=response();await events(req,r.res);assert.equal(r.get().status,200);assert.equal(r.get().value.verified,true);assert.equal(r.get().value.stored,true);assert.equal(r.get().value.eventId,input.eventId)
   const safe=JSON.stringify(logs);for(const forbidden of [input.token,input.sessionId,input.eventId,'sb_secret_synthetic-private','sensitive message','answers','BMR'])assert.equal(safe.includes(forbidden),false)
  }finally{globalThis.fetch=fetchBefore;console.warn=warn;console.info=info;for(const k of Object.keys(process.env))if(!(k in old))delete process.env[k];Object.assign(process.env,old)}
 })

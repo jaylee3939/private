@@ -50,11 +50,11 @@ export function databaseFailure(error:unknown){
 }
 export function sameOrigin(req:Request){try{return req.headers.origin===new URL(env('SITE_ORIGIN')||'https://private-atv6.vercel.app').origin}catch{return false}}
 export function body(req:Request):unknown{const raw=typeof req.body==='string'?req.body:JSON.stringify(req.body??null);if(Buffer.byteLength(raw)>8192)throw Error('Too large');return JSON.parse(raw)}
-export async function db(path:string,init:RequestInit={}){
+async function dbResponse(path:string,init:RequestInit={}){
  const url=projectURL(),key=env('SUPABASE_SERVICE_ROLE_KEY');if(!url)throw new DatabaseError(503,'PUBLIC_CONFIG_INVALID')
  const state=serverKeyState();if(state!=='ready'){const codes:Record<string,string>={missing:'SERVER_KEY_MISSING',public_key_rejected:'SERVER_KEY_PUBLIC',project_mismatch:'SERVER_KEY_PROJECT_MISMATCH',expired:'SERVER_KEY_EXPIRED'};throw new DatabaseError(503,codes[state]||'SERVER_KEY_INVALID')}
  const headers:Record<string,string>={apikey:key,'Content-Type':'application/json',...(key.startsWith('sb_secret_')?{}:{Authorization:`Bearer ${key}`})}
- const response=await fetch(`${url}${path}`,{...init,headers:{...headers,...init.headers},signal:AbortSignal.timeout(10000)})
+ const response=await fetch(`${url}${path}`,{...init,cache:'no-store',headers:{...headers,...init.headers},signal:AbortSignal.timeout(10000)})
  if(!response.ok){
   const problem=await response.json().catch(()=>null)
   const databaseCode=typeof problem?.code==='string'&&/^(?:[0-9A-Z]{5}|PGRST[0-9]{3})$/.test(problem.code)?problem.code:undefined
@@ -62,6 +62,17 @@ export async function db(path:string,init:RequestInit={}){
   const reason=typeof problem?.message==='string'?reasons[problem.message]:undefined
   throw new DatabaseError(response.status,reason,databaseCode)
  }
+ return response
+}
+export async function db(path:string,init:RequestInit={}){
+ const response=await dbResponse(path,init)
  if(response.status===204)return null
  try{return await response.json()}catch{throw new DatabaseError(502,'DATABASE_RESPONSE_INVALID')}
+}
+export async function dbCount(path:string){
+ const response=await dbResponse(path,{headers:{Prefer:'count=exact',Range:'0-0','Range-Unit':'items'}})
+ const total=response.headers.get('content-range')?.match(/\/(\d+)$/)?.[1]
+ if(total===undefined||!Number.isSafeInteger(Number(total)))throw new DatabaseError(502,'DATABASE_COUNT_UNCONFIRMED')
+ await response.arrayBuffer()
+ return Number(total)
 }
