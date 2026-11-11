@@ -18,12 +18,13 @@ export default async function handler(req:Request,res:Response){
   const agrees=()=>['visits','starts','completions',...(shareReady?['shares']:[])].every(k=>metrics[k]===direct[k as 'visits'|'starts'|'completions'|'shares'])
   if(!agrees()){metrics=await load();direct=await directParticipationCounts(from,to,shareReady)}
   if(!metricsShape(metrics)||!agrees())return json(res,503,{errorCode:'METRICS_NOT_CONFIRMED',audit:direct})
-  let diagnosis='COUNTS_CONFIRMED',totalSessions:number|undefined,latestCreatedAt:string|undefined
-  if(direct.visits===0&&direct.starts===0&&direct.completions===0){
+  let diagnosis='COUNTS_CONFIRMED',totalSessions:number|undefined,totalStarted:number|undefined,totalCompleted:number|undefined,latestCreatedAt:string|undefined
+  if(direct.starts===0&&direct.completions===0){
    totalSessions=await dbCount('/rest/v1/plum_sessions?select=id')
-   diagnosis=totalSessions===0?'NO_STORED_SESSIONS':'OUTSIDE_SELECTED_DATES'
+   if(totalSessions>0){[totalStarted,totalCompleted]=await Promise.all([dbCount('/rest/v1/plum_sessions?select=id&started_at=not.is.null'),dbCount('/rest/v1/plum_sessions?select=id&completed_at=not.is.null')])}
+   diagnosis=totalSessions===0?'NO_STORED_SESSIONS':totalStarted===0&&totalCompleted===0?'NO_STORED_STARTS':'OUTSIDE_SELECTED_DATES'
    if(totalSessions>0){const rows=await db('/rest/v1/plum_sessions?select=created_at&order=created_at.desc&limit=1');latestCreatedAt=Array.isArray(rows)?rows[0]?.created_at:undefined}
   }
-  return json(res,200,{...metrics,audit:{...direct,diagnosis,verification:'table-count-v1',shareReady,...(totalSessions!==undefined?{totalSessions}:{}),...(latestCreatedAt?{latestCreatedAt}:{})}})
+  return json(res,200,{...metrics,audit:{...direct,diagnosis,verification:'table-count-v1',shareReady,...(totalSessions!==undefined?{totalSessions,totalStarted:totalStarted??0,totalCompleted:totalCompleted??0}:{}),...(latestCreatedAt?{latestCreatedAt}:{})}})
  }catch(e){const code=e instanceof DatabaseError?(e.errorCode||(e.status===401?'DATABASE_AUTH_FAILED':e.status===403?'DATABASE_ACCESS_DENIED':e.status===404?'DATABASE_SCHEMA_MISSING':'DATABASE_UNAVAILABLE')):'SERVICE_UNAVAILABLE';return json(res,503,{error:'Unable to load dashboard',errorCode:code})}
 }

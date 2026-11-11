@@ -22,6 +22,7 @@ test('visit-only session recovers start and complete atomically; retries and sha
   const call=async(kind:string,extra:object={},sessionId=sid,version='plum-responses-v2',eventId=randomUUID())=>{const r=response();await events({method:'POST',headers:{origin},body:{sessionId,eventId,token,kind,consent:true,adultConfirmed:true,consentVersion:version,...extra}} as any,r.res);return r.get()}
   assert.equal((await call('visit')).value.verified,true)
   assert.equal((await db.query('select started_at from public.plum_sessions where id=$1::uuid',[sid])).rows[0].started_at,null)
+  const currentDay=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(new Date()),beforeStats=response();await admin({method:'GET',url:`/api/admin?from=${currentDay}&to=${currentDay}`,headers:{authorization:'Bearer synthetic'}} as any,beforeStats.res);assert.equal(beforeStats.get().value.visits,1);assert.equal(beforeStats.get().value.audit.diagnosis,'NO_STORED_STARTS')
   // Reproduce the reported visit=1/start=0 state, then finish with no start request.
   const done=await call('complete',{answers});assert.equal(done.status,200);assert.equal(done.value.verified,true)
   for(let i=0;i<3;i++){assert.equal((await call('start')).status,200);assert.equal((await call('complete',{answers})).status,200)}

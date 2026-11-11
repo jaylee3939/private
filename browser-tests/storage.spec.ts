@@ -5,11 +5,13 @@ import {randomUUID} from 'node:crypto'
 import {PGlite} from '@electric-sql/pglite'
 import eventHandler from '../api/events.ts'
 import adminHandler from '../api/admin.ts'
+import statusHandler from '../api/participation.ts'
 import {questions} from '../src/quiz.ts'
 // Disposable local PostgreSQL only. No live project, participant or credential is used.
 test('BMR browser flow stores through actual API and SQL, then actual admin API aggregates it',async({page})=>{
  test.setTimeout(60000)
  const db=new PGlite(),before={...process.env},fetchBefore=globalThis.fetch
+ let privateSession='',privateToken=''
  const userId=randomUUID(),statuses:{kind:string;status:number}[]=[]
  try{
   await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,email text);')
@@ -22,9 +24,14 @@ test('BMR browser flow stores through actual API and SQL, then actual admin API 
   const config={collectionEnabled:true,collectionLocked:false,consentVersion:'plum-responses-v2',retentionDays:90,privacyContact:'synthetic@example.com',auth:{url:'https://synthetic-local.supabase.co',key:'sb_publishable_synthetic'}}
   await page.route('**/api/config',r=>r.fulfill({json:config}))
   await page.route('**/api/events',async route=>{
-   const req=route.request(),input=req.postDataJSON();let status=0,text='';const headers:Record<string,string>={}
+   const req=route.request(),input=req.postDataJSON();if(input.kind==='visit'){privateSession=input.sessionId;privateToken=input.token};let status=0,text='';const headers:Record<string,string>={}
    await eventHandler({method:req.method(),headers:await req.allHeaders(),body:input} as any,{set statusCode(n:number){status=n},setHeader(k:string,v:string){headers[k]=v},end(s:string){text=s}} as any)
    statuses.push({kind:input.kind,status});await route.fulfill({status,headers,body:text})
+  })
+  await page.route('**/api/participation?**',async route=>{
+   const req=route.request();let status=0,text='';const headers:Record<string,string>={}
+   await statusHandler({method:req.method(),url:req.url(),headers:await req.allHeaders()} as any,{set statusCode(n:number){status=n},setHeader(k:string,v:string){headers[k]=v},end(s:string){text=s}} as any)
+   await route.fulfill({status,headers,body:text})
   })
   await page.route('**/api/login',r=>r.fulfill({json:{access_token:'synthetic-token',expires_in:3600}}))
   await page.route('**/api/admin?**',async route=>{
@@ -32,7 +39,7 @@ test('BMR browser flow stores through actual API and SQL, then actual admin API 
    await adminHandler({method:req.method(),url:req.url(),headers:await req.allHeaders()} as any,{set statusCode(n:number){status=n},setHeader(k:string,v:string){headers[k]=v},end(s:string){text=s}} as any)
    await route.fulfill({status,headers,body:text})
   })
-  await page.addInitScript(()=>{(window as any).__copyFails=true;Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{if((window as any).__copyFails)throw Error('Synthetic clipboard failure')}}})})
+  await page.addInitScript(()=>{(window as any).__copyFails=true;Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(text:string)=>{if((window as any).__copyFails)throw Error('Synthetic clipboard failure');(window as any).__lastCopied=text}}})})
   await page.goto('/')
   await page.getByRole('checkbox',{name:/만 19세 이상/}).check();await page.getByRole('checkbox',{name:/익명 참여 통계/}).check()
   await page.getByRole('button',{name:'내 PLUM TYPE 찾기'}).click()
@@ -53,6 +60,12 @@ test('BMR browser flow stores through actual API and SQL, then actual admin API 
   await page.evaluate(()=>{(window as any).__copyFails=false})
   await page.getByRole('button',{name:'결과 링크 복사'}).click();await expect(page.getByText('참여 통계 저장을 완료했어요. 친구에게 공유도 기록했어요.')).toBeVisible()
   expect((await db.query<{n:number}>('select count(*)::int n from public.plum_share_events')).rows[0].n).toBe(1)
+  await expect(page.locator('aside[aria-label="참여 데이터 저장 상태"]')).toContainText('DB 확인: 시작 1 · 답변 18 · 완료 1 · 공유 1')
+  await page.getByText('저장 진단 정보 (답변·비밀키 제외)',{exact:true}).click();await page.getByRole('button',{name:'저장 진단 복사'}).click()
+  const diagnostic=await page.evaluate(()=>(window as any).__lastCopied as string),proof=JSON.parse(diagnostic)
+  expect(proof.run.allowed).toBe(true);expect(proof.run.answers).toBe(18);expect(proof.snapshot.completed).toBe(true);expect(proof.snapshot.answerCount).toBe(18)
+  for(const secret of [privateSession,privateToken,'BMR','sb_secret','sb_publishable'])expect(diagnostic).not.toContain(secret)
+  expect(statuses.filter(e=>e.kind==='share')).toHaveLength(1)
   const eventCount=statuses.length;await page.reload();await expect(page.getByRole('checkbox',{name:/익명 참여 통계/})).toBeVisible();expect(statuses.length).toBe(eventCount)
   await page.goto('/admin');await page.getByLabel('이메일',{exact:true}).fill('synthetic@example.com');await page.getByLabel('비밀번호',{exact:true}).fill('synthetic-password')
   await page.getByRole('button',{name:'로그인',exact:true}).click()

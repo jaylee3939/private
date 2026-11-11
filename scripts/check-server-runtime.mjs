@@ -7,10 +7,11 @@ import events from '../.server-build/api/events.js'
 import login from '../.server-build/api/login.js'
 import content from '../.server-build/api/content.js'
 import upload from '../.server-build/api/upload.js'
+import participation from '../.server-build/api/participation.js'
 const before={...process.env},originalFetch=globalThis.fetch
 function response(){let status=0,value;return {res:{set statusCode(n){status=n},setHeader(){},end(body){value=JSON.parse(body)}},get:()=>({status,value})}}
 try{
- for(const file of ['api/config.js','api/admin.js','api/events.js','api/login.js','api/content.js','api/upload.js','server/admin-auth.js','server/storage-verification.js','src/content.js','server/http.js','server/events.js']){
+ for(const file of ['api/config.js','api/admin.js','api/events.js','api/login.js','api/content.js','api/upload.js','api/participation.js','server/participation-status.js','server/admin-auth.js','server/storage-verification.js','src/content.js','server/http.js','server/events.js']){
   const source=await readFile(new URL(`../.server-build/${file}`,import.meta.url),'utf8')
   assert.equal(/(?:from\s*["']|import\s*\(\s*["'])[^"']+\.tsx?["']/.test(source),false,`TS runtime import in ${file}`)
  }
@@ -29,6 +30,7 @@ try{
  r=response();await login({method:'POST',headers:{},body:{}},r.res);assert.equal(r.get().status,403)
  r=response();await content({method:'PUT',headers:{},url:'/api/content'},r.res);assert.equal(r.get().status,401)
  r=response();await upload({method:'POST',headers:{}},r.res);assert.equal(r.get().status,401)
+ r=response();await participation({method:'GET',headers:{},url:'/api/participation'},r.res);assert.equal(r.get().status,401)
  console.log('Server ESM runtime passed: config 200, anonymous admin 401, non-admin 403; no TypeScript runtime imports.')
 }finally{
  globalThis.fetch=originalFetch

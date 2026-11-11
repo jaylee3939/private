@@ -11,10 +11,17 @@ export function participationTransport(db:PGlite,userId:string):typeof fetch{ret
   await db.query('select public.plum_ingest($1::uuid,$2,$3::uuid,$4,$5::jsonb,$6,$7,$8)',[p.p_session,p.p_hash,p.p_event,p.p_kind,p.p_answers?JSON.stringify(p.p_answers):null,p.p_question,p.p_result,p.p_consent]);return new Response(null,{status:204})
  }
  if(path==='/rest/v1/rpc/plum_withdraw'){await db.query('select public.plum_withdraw($1::uuid,$2)',[p.p_session,p.p_hash]);return new Response(null,{status:204})}
- if(path==='/rest/v1/plum_events')return new Response(JSON.stringify((await db.query('select id,kind from public.plum_events where id=$1::uuid and session_id=$2::uuid',[u.searchParams.get('id')!.slice(3),u.searchParams.get('session_id')!.slice(3)])).rows))
+ if(path==='/rest/v1/plum_events'){
+  if((init?.headers as Record<string,string>)?.Prefer==='count=exact'){
+   const n=(await db.query<{n:number}>('select count(*)::int n from public.plum_events where session_id=$1::uuid and kind=$2',[u.searchParams.get('session_id')!.slice(3),u.searchParams.get('kind')!.slice(3)])).rows[0].n
+   return new Response('[]',{headers:{'Content-Range':n?`0-0/${n}`:'*/0'}})
+  }
+  return new Response(JSON.stringify((await db.query('select id,kind from public.plum_events where id=$1::uuid and session_id=$2::uuid',[u.searchParams.get('id')!.slice(3),u.searchParams.get('session_id')!.slice(3)])).rows))
+ }
  if(path==='/rest/v1/plum_answers')return new Response(JSON.stringify((await db.query('select question_id,pole from public.plum_answers where session_id=$1::uuid',[u.searchParams.get('session_id')!.slice(3)])).rows))
  if(path==='/rest/v1/plum_share_events'){
   if(u.searchParams.has('id'))return new Response(JSON.stringify((await db.query('select id from public.plum_share_events where id=$1::uuid and session_id=$2::uuid',[u.searchParams.get('id')!.slice(3),u.searchParams.get('session_id')!.slice(3)])).rows))
+  if(u.searchParams.has('session_id')){const n=(await db.query<{n:number}>('select count(*)::int n from public.plum_share_events where session_id=$1::uuid',[u.searchParams.get('session_id')!.slice(3)])).rows[0].n;return new Response('[]',{headers:{'Content-Range':n?`0-0/${n}`:'*/0'}})}
   const [start,end]=u.searchParams.getAll('created_at').map(f=>f.slice(f.startsWith('gte.')?4:3))
   const n=(await db.query<{n:number}>('select count(*)::int n from public.plum_share_events where created_at>=$1::timestamptz and created_at<$2::timestamptz',[start,end])).rows[0].n
   return new Response('[]',{headers:{'Content-Range':n?`0-0/${n}`:'*/0'}})
@@ -31,6 +38,7 @@ export function participationTransport(db:PGlite,userId:string):typeof fetch{ret
   const where:string[]=[],args:unknown[]=[]
   if(sid){args.push(sid);where.push(`id=$${args.length}::uuid`)}
   for(const column of ['created_at','started_at'])for(const filter of u.searchParams.getAll(column)){
+   if(filter==='not.is.null'){where.push(`${column} is not null`);continue}
    const op=filter.slice(0,3),value=filter.slice(op==='gte'?4:3);if(op!=='gte'&&!filter.startsWith('lt.'))throw Error('Unexpected date filter')
    args.push(value);where.push(`${column}${op==='gte'?'>=':'<'}$${args.length}::timestamptz`)
   }

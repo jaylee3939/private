@@ -1,6 +1,7 @@
-import {PARTICIPATION_CONSENT} from './participation-protocol.ts'
+import type {ParticipationTrace,ParticipationSnapshot,FlowFailure} from './participation-protocol.ts'
+import {PARTICIPATION_CONSENT,emptyParticipationTrace} from './participation-protocol.ts'
 import type {Answers} from './quiz.ts'
-export type PublicConfig={collectionEnabled:boolean;consentVersion:string;retentionDays:number;privacyContact:string;auth:{url:string;key:string}|null;checks?:Record<string,string>;configVersion?:string;collectionLocked?:boolean;loadError?:string}
+export type PublicConfig={collectionEnabled:boolean;consentVersion:string;retentionDays:number;privacyContact:string;auth:{url:string;key:string}|null;checks?:Record<string,string>;configVersion?:string;collectionLocked?:boolean;loadError?:string;flowVersion?:string;deploymentCommit?:string;projectHint?:string}
 export const fallbackConfig:PublicConfig={collectionEnabled:false,consentVersion:PARTICIPATION_CONSENT,retentionDays:90,privacyContact:'',auth:null}
 export async function getConfig():Promise<PublicConfig>{
  try{
@@ -9,7 +10,7 @@ export async function getConfig():Promise<PublicConfig>{
   if(!r.headers.get('content-type')?.includes('application/json'))return {...fallbackConfig,loadError:'CONFIG_NOT_JSON'}
   const c=await r.json()
   if(!c||typeof c!=='object'||typeof c.collectionEnabled!=='boolean'||!(c.auth===null||(typeof c.auth==='object'&&typeof c.auth.url==='string'&&typeof c.auth.key==='string')))return {...fallbackConfig,loadError:'CONFIG_INVALID_RESPONSE'}
-  return {...fallbackConfig,...c}
+  return {...fallbackConfig,...c,flowVersion:typeof c.flowVersion==='string'&&/^plum-flow-[0-9]+$/.test(c.flowVersion)?c.flowVersion:undefined,deploymentCommit:typeof c.deploymentCommit==='string'&&/^[a-f0-9]{7}$/i.test(c.deploymentCommit)?c.deploymentCommit:'unknown',projectHint:typeof c.projectHint==='string'&&/^[a-f0-9]{12}$/.test(c.projectHint)?c.projectHint:undefined}
  }catch{return {...fallbackConfig,loadError:'CONFIG_NETWORK_ERROR'}}
 }
 type Kind='visit'|'start'|'answer'|'complete'|'abandon'|'heartbeat'|'withdraw'|'share'
@@ -19,8 +20,13 @@ export class Participation {
  private pendingWithdrawal:Session|null=null
  private queue:Promise<void>=Promise.resolve()
  private lastFailure=''
+ private inspectSequence=0
+ private trace=emptyParticipationTrace()
+ private changed?:(trace:ParticipationTrace)=>void
  private report:(text:string)=>void
- constructor(report:(text:string)=>void){this.report=report}
+ constructor(report:(text:string)=>void,changed?:(trace:ParticipationTrace)=>void){this.report=report;this.changed=changed}
+ private publish(s:Session){if(this.session===s)this.changed?.(structuredClone(this.trace))}
+ private failure(s:Session,f:FlowFailure){if(this.session!==s)return;this.trace.failures=[...this.trace.failures.filter(x=>x.stage!==f.stage||x.code!==f.code),f].slice(-6);this.publish(s)}
  private payload(s:Session,kind:Kind,eventId:string=crypto.randomUUID(),extra:object={}){return {sessionId:s.id,token:s.token,eventId,kind,consent:true,adultConfirmed:true,consentVersion:PARTICIPATION_CONSENT,...extra}}
  private async post(s:Session,payload:object,force=false){
   const event=payload as {kind:Kind;eventId:string}
@@ -28,17 +34,21 @@ export class Participation {
   for(let attempt=0;attempt<3;attempt++){
    if(!force&&!s.active)return false
    try{
+    if(this.session===s){this.trace.sent[event.kind]=(this.trace.sent[event.kind]||0)+1;this.publish(s)}
     const r=await fetch('/api/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),keepalive:true,signal:AbortSignal.timeout(10000)})
     const value=await r.json().catch(()=>null)
-    if(r.ok&&value?.verified===true&&value?.eventId===event.eventId&&(event.kind==='withdraw'?value.deleted===true:value.stored===true)){this.lastFailure='';return true}
+    if(this.session===s&&typeof value?.flowVersion==='string'&&/^plum-flow-[0-9]+$/.test(value.flowVersion))this.trace.serverFlowVersion=value.flowVersion
+    if(r.ok&&value?.verified===true&&value?.eventId===event.eventId&&(event.kind==='withdraw'?value.deleted===true:value.stored===true)){this.lastFailure='';if(this.session===s){this.trace.confirmed[event.kind]=(this.trace.confirmed[event.kind]||0)+1;this.publish(s)}return true}
     const code=!r.ok&&typeof value?.errorCode==='string'&&/^[A-Z][A-Z0-9_]{0,63}$/.test(value.errorCode)?value.errorCode:r.ok?'INVALID_STORAGE_ACK':'STORAGE_HTTP_ERROR'
     const databaseCode=typeof value?.databaseCode==='string'&&/^(?:[0-9A-Z]{5}|PGRST[0-9]{3})$/.test(value.databaseCode)?value.databaseCode:''
     const requestId=typeof value?.requestId==='string'&&/^[a-f0-9-]{36}$/i.test(value.requestId)?value.requestId:''
+    this.failure(s,{stage:event.kind,code,status:r.status,...(requestId?{requestId}:{}),...(databaseCode?{databaseCode}:{})})
     this.lastFailure=` [${event.kind} · HTTP ${r.status} · ${code}${databaseCode?' · DB '+databaseCode:''}${requestId?' · '+requestId:''}]`
     console.warn('PLUM storage', {stage:event.kind,status:r.status,errorCode:code,...(requestId?{requestId}:{})})
     if(r.status===400||r.status===403||['COLLECTION_DISABLED','PARTICIPATION_SETUP_REQUIRED','SHARE_SETUP_REQUIRED','INVALID_EVENT','SESSION_REJECTED','SERVER_KEY_INVALID','SERVER_KEY_PUBLIC','SERVER_KEY_MISSING'].includes(code))return false
    }catch(error){
     const code=error instanceof Error&&error.name==='TimeoutError'?'STORAGE_TIMEOUT':'STORAGE_NETWORK_ERROR'
+    this.failure(s,{stage:event.kind,code})
     this.lastFailure=` [${event.kind} · ${code}]`
     console.warn('PLUM storage',{stage:event.kind,errorCode:code})
    }
@@ -46,9 +56,10 @@ export class Participation {
   }return false
  }
  private failed(text:string,s?:Session){if(!s||this.session===s)this.report(text+this.lastFailure)}
- grant(){if(this.session?.active)return;this.session={id:crypto.randomUUID(),token:Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,'0')).join(''),visitId:crypto.randomUUID(),startId:crypto.randomUUID(),completeId:crypto.randomUUID(),completeRequested:false,completeQueued:false,visited:false,started:false,startRequested:false,active:true,complete:false};this.send('visit')}
+ grant(){if(this.session?.active)return;this.trace=emptyParticipationTrace();this.session={id:crypto.randomUUID(),token:Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,'0')).join(''),visitId:crypto.randomUUID(),startId:crypto.randomUUID(),completeId:crypto.randomUUID(),completeRequested:false,completeQueued:false,visited:false,started:false,startRequested:false,active:true,complete:false};this.send('visit')}
  private send(kind:Kind,extra:object={}){
   const s=this.session;if(!s?.active)return
+  if(this.session===s){this.trace.queued[kind]=(this.trace.queued[kind]||0)+1;this.publish(s)}
   const event=this.payload(s,kind,kind==='visit'?s.visitId:kind==='start'?s.startId:kind==='complete'?s.completeId:crypto.randomUUID(),extra)
   this.queue=this.queue.then(async()=>{
    if(!s.active)return
@@ -67,7 +78,24 @@ export class Participation {
    if(kind==='complete')s.completeQueued=false
    if(ok&&kind==='share'&&this.session===s)this.report('참여 통계 저장을 완료했어요. 친구에게 공유도 기록했어요.')
    if(!ok)this.failed('일부 통계가 저장되지 않았을 수 있어요. 테스트 결과에는 영향이 없어요.',s)
+   if(kind==='start'||kind==='complete'||kind==='share')void this.inspect(s)
   }).catch(()=>{if(kind==='complete')s.completeQueued=false;this.failed('통계 저장에 연결하지 못했어요.',s)})
+ }
+ private async inspect(s:Session){
+  if(!s.active||this.session!==s||!this.changed)return
+  const sequence=++this.inspectSequence
+  try{
+   const r=await fetch(`/api/participation?session=${s.id}`,{headers:{Authorization:`Bearer ${s.token}`},cache:'no-store',signal:AbortSignal.timeout(10000)}),v=await r.json().catch(()=>null)
+   if(!s.active||this.session!==s||sequence!==this.inspectSequence)return
+   if(!r.ok||v?.verified!==true||typeof v.started!=='boolean'||typeof v.completed!=='boolean'||!Number.isSafeInteger(v.answerCount)){
+    this.trace.snapshotError={stage:'db-status',code:typeof v?.errorCode==='string'&&/^[A-Z_]{1,64}$/.test(v.errorCode)?v.errorCode:'STATUS_RESPONSE_INVALID',status:r.status}
+   }else{
+    const count=(x:unknown)=>typeof x==='number'&&Number.isSafeInteger(x)&&x>=0
+    if(!['supplementaryCount','startEvents','completeEvents'].every(k=>count(v[k]))||!(v.shares===null||count(v.shares))||typeof v.resultRecorded!=='boolean'){this.trace.snapshotError={stage:'db-status',code:'STATUS_RESPONSE_INVALID'}}
+    else{this.trace.snapshot={verified:true,started:v.started,completed:v.completed,answerCount:v.answerCount,supplementaryCount:v.supplementaryCount,startEvents:v.startEvents,completeEvents:v.completeEvents,shares:v.shares,resultRecorded:v.resultRecorded,flowVersion:typeof v.flowVersion==='string'&&/^plum-flow-[0-9]+$/.test(v.flowVersion)?v.flowVersion:'unknown',projectHint:typeof v.projectHint==='string'&&/^[a-f0-9]{12}$/.test(v.projectHint)?v.projectHint:'unknown'};delete this.trace.snapshotError}
+   }
+  }catch{if(this.session===s&&sequence===this.inspectSequence)this.trace.snapshotError={stage:'db-status',code:'STATUS_NETWORK_ERROR'}}
+  this.publish(s)
  }
  start(){const s=this.session;if(!s?.active||s.startRequested)return;s.startRequested=true;this.send('start')}
  answer(answers:Answers,questionId:string){this.send('answer',{answers:{...answers},questionId})}

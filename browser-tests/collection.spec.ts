@@ -79,3 +79,21 @@ test('admin login stays same-origin and explains authentication versus connectio
  await page.getByRole('button',{name:'로그인',exact:true}).click();await expect(page.getByRole('status')).toContainText('Vercel 서버가 Supabase에 연결하지')
  expect(externalRequests).toBe(0);await expect(page.locator('table')).toHaveCount(0)
 })
+
+test('config loading cannot hide consent behind a running quiz; no-consent result explains why nothing was stored',async({page})=>{
+ let release:()=>void=()=>{};const ready=new Promise<void>(r=>{release=r});let events=0
+ await page.route('**/api/config',async r=>{await ready;return r.fulfill({json:config})})
+ await page.route('**/api/events',r=>{events++;return r.fulfill({json:{}})})
+ await page.goto('/');await page.getByRole('checkbox',{name:/만 19세 이상/}).check()
+ await expect(page.getByRole('button',{name:'내 PLUM TYPE 찾기'})).toBeDisabled()
+ release();await expect(page.getByRole('checkbox',{name:/익명 참여 통계/})).toBeVisible()
+ await page.getByRole('button',{name:'내 PLUM TYPE 찾기'}).click()
+ for(let i=0;i<18;i++){await page.getByRole('radio',{name:escape(questions[i].options[0].text)}).check();await page.getByRole('button',{name:i===17?'결과 보기':'다음 질문'}).click()}
+ await expect(page.locator('aside[aria-label="참여 데이터 저장 상태"]')).toContainText('수집 동의 없이 시작되어 응답을 저장하지 않았습니다')
+ expect(events).toBe(0)
+ // Consent after the result creates a visit only, never retroactively sends answers/completion.
+ const captured:string[]=[];await page.unroute('**/api/events')
+ await page.route('**/api/events',r=>{const e=r.request().postDataJSON();captured.push(e.kind);return r.fulfill({json:{stored:true,verified:true,eventId:e.eventId}})})
+ await page.getByRole('checkbox',{name:/익명 참여 통계/}).check();await expect.poll(()=>captured.length).toBe(1);expect(captured).toEqual(['visit'])
+ await expect(page.locator('aside[aria-label="참여 데이터 저장 상태"]')).toContainText('이전 답변은 소급 저장하지 않습니다')
+})
