@@ -1,3 +1,4 @@
+import {basicMetrics} from '../server/basic-metrics.js'
 import {directParticipationCounts,metricsShape} from '../server/storage-verification.js'
 import {authorizeAdmin} from '../server/admin-auth.js'
 import {json,db,dbCount,DatabaseError,type Request,type Response} from '../server/http.js'
@@ -25,6 +26,6 @@ export default async function handler(req:Request,res:Response){
    diagnosis=totalSessions===0?'NO_STORED_SESSIONS':totalStarted===0&&totalCompleted===0?'NO_STORED_STARTS':'OUTSIDE_SELECTED_DATES'
    if(totalSessions>0){const rows=await db('/rest/v1/plum_sessions?select=created_at&order=created_at.desc&limit=1');latestCreatedAt=Array.isArray(rows)?rows[0]?.created_at:undefined}
   }
-  return json(res,200,{...metrics,audit:{...direct,diagnosis,verification:'table-count-v1',shareReady,...(totalSessions!==undefined?{totalSessions,totalStarted:totalStarted??0,totalCompleted:totalCompleted??0}:{}),...(latestCreatedAt?{latestCreatedAt}:{})}})
+  return json(res,200,{...metrics,basic:await basicMetrics(from,to),audit:{...direct,diagnosis,verification:'table-count-v1',shareReady,...(totalSessions!==undefined?{totalSessions,totalStarted:totalStarted??0,totalCompleted:totalCompleted??0}:{}),...(latestCreatedAt?{latestCreatedAt}:{})}})
  }catch(e){const code=e instanceof DatabaseError?(e.errorCode||(e.status===401?'DATABASE_AUTH_FAILED':e.status===403?'DATABASE_ACCESS_DENIED':e.status===404?'DATABASE_SCHEMA_MISSING':'DATABASE_UNAVAILABLE')):'SERVICE_UNAVAILABLE';return json(res,503,{error:'Unable to load dashboard',errorCode:code})}
 }

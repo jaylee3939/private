@@ -27,7 +27,7 @@ export class Participation {
  constructor(report:(text:string)=>void,changed?:(trace:ParticipationTrace)=>void){this.report=report;this.changed=changed}
  private publish(s:Session){if(this.session===s)this.changed?.(structuredClone(this.trace))}
  private failure(s:Session,f:FlowFailure){if(this.session!==s)return;this.trace.failures=[...this.trace.failures.filter(x=>x.stage!==f.stage||x.code!==f.code),f].slice(-6);this.publish(s)}
- private payload(s:Session,kind:Kind,eventId:string=crypto.randomUUID(),extra:object={}){return {sessionId:s.id,token:s.token,eventId,kind,consent:true,adultConfirmed:true,consentVersion:PARTICIPATION_CONSENT,...extra}}
+ private payload(s:Session,kind:Kind,eventId:string=crypto.randomUUID(),extra:object={}){return {sessionId:s.id,token:s.token,eventId,kind,consent:true,sensitiveConsent:true,adultConfirmed:true,consentVersion:PARTICIPATION_CONSENT,...extra}}
  private async post(s:Session,payload:object,force=false){
   const event=payload as {kind:Kind;eventId:string}
   this.lastFailure=''

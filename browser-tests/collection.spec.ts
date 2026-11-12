@@ -4,12 +4,12 @@ const config={collectionEnabled:true,consentVersion:'plum-responses-v1',retentio
 const escape=(s:string)=>new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'))
 test('consent gates collection; full answers, withdrawal and refresh do not leak stored identity',async({page})=>{
  const events:any[]=[]
- await page.route('**/api/config',r=>r.fulfill({json:config}))
+ await page.route('**/api/basic-events',r=>r.fulfill({json:{recorded:true}}));await page.route('**/api/config',r=>r.fulfill({json:config}))
  await page.route('**/api/events',r=>{const e=r.request().postDataJSON();events.push(e);return r.fulfill({json:e.kind==='withdraw'?{deleted:true,verified:true,eventId:e.eventId}:{stored:true,verified:true,eventId:e.eventId}})})
  await page.goto('/')
  await expect(page.getByRole('checkbox',{name:/익명 참여 통계/})).toBeVisible()
  await page.getByRole('checkbox',{name:/만 19세 이상/}).check();await page.waitForTimeout(100);expect(events).toHaveLength(0)
- await page.getByRole('checkbox',{name:/익명 참여 통계/}).check();await expect.poll(()=>events.filter(e=>e.kind==='visit').length).toBe(1)
+ await page.getByRole('checkbox',{name:/익명 참여 통계/}).check();await page.waitForTimeout(100);expect(events).toHaveLength(0);await page.getByRole('checkbox',{name:/성생활·성적 취향에 관한 민감정보/}).check();await expect.poll(()=>events.filter(e=>e.kind==='visit').length).toBe(1)
  await page.getByRole('button',{name:'내 PLUM TYPE 찾기'}).click()
  for(let i=0;i<18;i++){
   await page.getByRole('radio',{name:escape(questions[i].options[0].text)}).check()
@@ -28,14 +28,14 @@ test('consent gates collection; full answers, withdrawal and refresh do not leak
 })
 test('without consent, completing all questions sends zero collection events',async({page})=>{
  const events:any[]=[]
- await page.route('**/api/config',r=>r.fulfill({json:config}));await page.route('**/api/events',r=>{events.push(r.request().postDataJSON());return r.fulfill({json:{stored:true}})})
+ await page.route('**/api/basic-events',r=>r.fulfill({json:{recorded:true}}));await page.route('**/api/config',r=>r.fulfill({json:config}));await page.route('**/api/events',r=>{events.push(r.request().postDataJSON());return r.fulfill({json:{stored:true}})})
  await page.goto('/');await page.getByRole('checkbox',{name:/만 19세 이상/}).check();await page.getByRole('button',{name:'내 PLUM TYPE 찾기'}).click()
  for(let i=0;i<18;i++){await page.getByRole('radio',{name:escape(questions[i].options[1].text)}).check();await page.getByRole('button',{name:i===17?'결과 보기':'다음 질문'}).click()}
  await expect(page.locator('.plum-result-code')).toHaveText('SMR');expect(events).toHaveLength(0)
 })
 test('admin login gate, forbidden user and aggregate dashboard',async({page})=>{
  let allowed=false,queries=0
- await page.route('**/api/config',r=>r.fulfill({json:{...config,auth:{url:'https://plum-test.supabase.co',key:'public-test-key'}}}))
+ await page.route('**/api/basic-events',r=>r.fulfill({json:{recorded:true}}));await page.route('**/api/config',r=>r.fulfill({json:{...config,auth:{url:'https://plum-test.supabase.co',key:'public-test-key'}}}))
  await page.route('**/api/login',r=>r.fulfill({json:{access_token:'test-only-token',expires_in:3600}}))
  await page.route('**/api/admin?**',r=>{queries++;return r.fulfill({status:allowed?200:403,json:allowed?{visits:3,starts:2,completions:1,dropoffs:1,daily:[{date:'2026-11-03',visits:3,starts:2,completions:1}],results:[{code:'BTP',count:1}],answers:[{question_id:'bs1',pole:'B',count:1},{question_id:'bs1',pole:'S',count:1}]}:{error:'Administrator access required'}})})
  await page.goto('/admin');await expect(page.getByRole('heading',{name:'관리자 로그인'})).toBeVisible();expect(queries).toBe(0)
@@ -49,14 +49,14 @@ test('admin login gate, forbidden user and aggregate dashboard',async({page})=>{
 })
 
 test('admin distinguishes a server API failure from missing environment variables',async({page})=>{
- await page.route('**/api/config',r=>r.fulfill({status:500,json:{error:'server failed'}}))
+ await page.route('**/api/basic-events',r=>r.fulfill({json:{recorded:true}}));await page.route('**/api/config',r=>r.fulfill({status:500,json:{error:'server failed'}}))
  await page.goto('/admin')
  await expect(page.getByText('관리자 로그인 설정을 확인해야 합니다.',{exact:false})).toBeVisible();await expect(page.getByText('HTTP 500',{exact:false})).toHaveCount(0)
  await expect(page.getByRole('heading',{name:'관리자 로그인'})).toHaveCount(0)
 })
 test('valid public login settings display login with collection locked; diagnostics show no values',async({page})=>{
  const checks={SUPABASE_URL:'ready',SUPABASE_ANON_KEY:'ready',SUPABASE_SERVICE_ROLE_KEY:'present',SITE_ORIGIN:'ready',PRIVACY_CONTACT:'present',RETENTION_JOB_READY:'disabled',DATA_COLLECTION_ENABLED:'disabled'}
- await page.route('**/api/config',r=>r.fulfill({json:{...config,collectionEnabled:false,collectionLocked:true,configVersion:'plum-config-2',checks,auth:{url:'https://plum-test.supabase.co',key:'sb_publishable_test'}}}))
+ await page.route('**/api/basic-events',r=>r.fulfill({json:{recorded:true}}));await page.route('**/api/config',r=>r.fulfill({json:{...config,collectionEnabled:false,collectionLocked:true,configVersion:'plum-config-2',checks,auth:{url:'https://plum-test.supabase.co',key:'sb_publishable_test'}}}))
  await page.goto('/admin')
  await expect(page.getByRole('heading',{name:'관리자 로그인'})).toBeVisible()
  await expect(page.getByText('서버 설정 진단 · 키 값은 표시하지 않습니다')).toHaveCount(0)
@@ -64,7 +64,7 @@ test('valid public login settings display login with collection locked; diagnost
 })
 
 test('admin login stays same-origin and explains authentication versus connection failures',async({page})=>{
- await page.route('**/api/config',r=>r.fulfill({json:{...config,auth:{url:'https://plum-test.supabase.co',key:'public-test-key'}}}))
+ await page.route('**/api/basic-events',r=>r.fulfill({json:{recorded:true}}));await page.route('**/api/config',r=>r.fulfill({json:{...config,auth:{url:'https://plum-test.supabase.co',key:'public-test-key'}}}))
  let errorCode='INVALID_CREDENTIALS'
  await page.route('**/api/login',r=>{expect(r.request().method()).toBe('POST');return r.fulfill({status:errorCode==='INVALID_CREDENTIALS'?400:502,json:{errorCode}})})
  let externalRequests=0
@@ -80,7 +80,7 @@ test('admin login stays same-origin and explains authentication versus connectio
 
 test('config loading cannot hide consent behind a running quiz; no-consent result explains why nothing was stored',async({page})=>{
  let release:()=>void=()=>{};const ready=new Promise<void>(r=>{release=r});let events=0
- await page.route('**/api/config',async r=>{await ready;return r.fulfill({json:config})})
+ await page.route('**/api/basic-events',r=>r.fulfill({json:{recorded:true}}));await page.route('**/api/config',async r=>{await ready;return r.fulfill({json:config})})
  await page.route('**/api/events',r=>{events++;return r.fulfill({json:{}})})
  await page.goto('/');await page.getByRole('checkbox',{name:/만 19세 이상/}).check()
  await expect(page.getByRole('button',{name:'내 PLUM TYPE 찾기'})).toBeDisabled()
@@ -92,15 +92,15 @@ test('config loading cannot hide consent behind a running quiz; no-consent resul
  // Consent after the result creates a visit only, never retroactively sends answers/completion.
  const captured:string[]=[];await page.unroute('**/api/events')
  await page.route('**/api/events',r=>{const e=r.request().postDataJSON();captured.push(e.kind);return r.fulfill({json:{stored:true,verified:true,eventId:e.eventId}})})
- await page.getByRole('checkbox',{name:/익명 참여 통계/}).check();await expect.poll(()=>captured.length).toBe(1);expect(captured).toEqual(['visit'])
+ await page.getByRole('checkbox',{name:/익명 참여 통계/}).check();await page.getByRole('checkbox',{name:/성생활·성적 취향에 관한 민감정보/}).check();await expect.poll(()=>captured.length).toBe(1);expect(captured).toEqual(['visit'])
  await expect(page.locator('aside[aria-label="참여 데이터 저장 상태"]')).toHaveCount(0)
 })
 
 test('public result never displays storage failures or deployment diagnostics',async({page})=>{
- await page.route('**/api/config',r=>r.fulfill({json:{...config,deploymentCommit:'abcdef0',flowVersion:'plum-flow-4'}}))
+ await page.route('**/api/basic-events',r=>r.fulfill({json:{recorded:true}}));await page.route('**/api/config',r=>r.fulfill({json:{...config,deploymentCommit:'abcdef0',flowVersion:'plum-flow-4'}}))
  const events:string[]=[]
  await page.route('**/api/events',r=>{events.push(r.request().postDataJSON().kind);return r.fulfill({status:403,json:{errorCode:'SERVER_KEY_INVALID',requestId:'synthetic-diagnostic-reference'}})})
- await page.goto('/');await page.getByRole('checkbox',{name:/만 19세 이상/}).check();await page.getByRole('checkbox',{name:/익명 참여 통계/}).check();await page.getByRole('button',{name:'내 PLUM TYPE 찾기'}).click()
+ await page.goto('/');await page.getByRole('checkbox',{name:/만 19세 이상/}).check();await page.getByRole('checkbox',{name:/익명 참여 통계/}).check();await page.getByRole('checkbox',{name:/성생활·성적 취향에 관한 민감정보/}).check();await page.getByRole('button',{name:'내 PLUM TYPE 찾기'}).click()
  for(let i=0;i<18;i++){await page.getByRole('radio',{name:escape(questions[i].options[0].text)}).check();await page.getByRole('button',{name:i===17?'결과 보기':'다음 질문'}).click()}
  await expect(page.locator('.plum-result-code')).toHaveText('BTP')
  await expect.poll(()=>events.includes('complete')).toBe(true)

@@ -19,7 +19,7 @@ test('actual SQL readback proves every write; raw table counts detect false zero
   console.warn=()=>{};console.info=()=>{}
   await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,email text);')
   await db.exec(await readFile(new URL('../supabase/01_setup.sql',import.meta.url),'utf8'))
-  await db.exec(await readFile(new URL('../supabase/06_participation_flow.sql',import.meta.url),'utf8'))
+  await db.exec(await readFile(new URL('../supabase/06_participation_flow.sql',import.meta.url),'utf8'));await db.exec(await readFile(new URL('../supabase/07_basic_aggregates.sql',import.meta.url),'utf8'))
   await db.query('insert into auth.users(id) values($1::uuid)',[user]);await db.query('insert into public.plum_admins(user_id) values($1::uuid)',[user]);await db.exec('set role service_role')
   Object.assign(process.env,{SUPABASE_URL:'https://verification-test.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_synthetic',SUPABASE_SERVICE_ROLE_KEY:'sb_secret_synthetic',SITE_ORIGIN:origin,DATA_COLLECTION_ENABLED:'true',RETENTION_JOB_READY:'true',PRIVACY_CONTACT:'test@example.com'})
   const transport=participationTransport(db,user);globalThis.fetch=transport
@@ -27,12 +27,12 @@ test('actual SQL readback proves every write; raw table counts detect false zero
   let m=await stats();assert.equal(m.status,200);assert.equal(m.value.audit.diagnosis,'NO_STORED_SESSIONS')
   let last:any
   const send=async(kind:string,answers?:object,questionId?:string)=>{
-   const e={sessionId,eventId:randomUUID(),token,kind,consentVersion:'plum-responses-v1',adultConfirmed:true,consent:true,...(answers?{answers}:{}),...(questionId?{questionId}:{})}
+   const e={sessionId,eventId:randomUUID(),token,kind,consentVersion:'plum-responses-v3',adultConfirmed:true,consent:true,sensitiveConsent:true,...(answers?{answers}:{}),...(questionId?{questionId}:{})}
    const r=response();await events({method:'POST',headers:{origin},body:e} as any,r.res);assert.equal(r.get().status,200);assert.equal(r.get().value.verified,true);last=e
   }
   // A successful RPC that writes nothing must never be acknowledged as stored.
   globalThis.fetch=async(url,init)=>String(url).includes('/rpc/plum_ingest')?new Response(JSON.stringify({event_id:randomUUID()})):transport(url,init)
-  let r=response();await events({method:'POST',headers:{origin},body:{sessionId,eventId:randomUUID(),token,kind:'visit',consentVersion:'plum-responses-v1',adultConfirmed:true,consent:true}} as any,r.res);assert.equal(r.get().value.errorCode,'SESSION_NOT_CONFIRMED');assert.equal(r.get().value.stored,undefined)
+  let r=response();await events({method:'POST',headers:{origin},body:{sessionId,eventId:randomUUID(),token,kind:'visit',consentVersion:'plum-responses-v3',adultConfirmed:true,consent:true,sensitiveConsent:true}} as any,r.res);assert.equal(r.get().value.errorCode,'SESSION_NOT_CONFIRMED');assert.equal(r.get().value.stored,undefined)
   globalThis.fetch=transport
   await send('visit');await send('start');const answers:Record<string,string>={}
   for(const q of questions){answers[q.id]=q.axis==='BS'?'B':q.axis==='TM'?'M':'R';await send('answer',{...answers},q.id)}

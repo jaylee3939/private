@@ -4,7 +4,7 @@ import {randomUUID} from 'node:crypto'
 import {validate,CONSENT_VERSION} from '../server/events.ts'
 import {questions} from '../src/quiz.ts'
 import {Participation} from '../src/telemetry.ts'
-const base=()=>({sessionId:randomUUID(),eventId:randomUUID(),token:'a'.repeat(64),consent:true,adultConfirmed:true,consentVersion:CONSENT_VERSION,kind:'visit'})
+const base=()=>({sessionId:randomUUID(),eventId:randomUUID(),token:'a'.repeat(64),consent:true,sensitiveConsent:true,adultConfirmed:true,consentVersion:CONSENT_VERSION,kind:'visit'})
 test('server validates consent, allowed fields, stable options and recomputed results',()=>{
  const b=base();assert.equal(validate(b).result,null)
  for(const bad of [{...b,consent:false},{...b,adultConfirmed:false},{...b,email:'x@example.com'},{...b,token:'bad'},{...b,answers:{}},{...b,consentVersion:[CONSENT_VERSION]}])assert.throws(()=>validate(bad))

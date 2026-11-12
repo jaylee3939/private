@@ -5,13 +5,14 @@ import type {Answers} from '../src/quiz.js'
 export const CONSENT_VERSION=PARTICIPATION_CONSENT
 export const kinds=['visit','start','answer','complete','abandon','heartbeat','withdraw','share'] as const
 export type Kind=typeof kinds[number]
-export type EventPayload={sessionId:string;token:string;eventId:string;kind:Kind;consentVersion:ParticipationConsent;adultConfirmed:true;consent:true;answers?:Answers;questionId?:string}
+export type EventPayload={sessionId:string;token:string;eventId:string;kind:Kind;consentVersion:ParticipationConsent;adultConfirmed:true;consent:true;sensitiveConsent?:true;answers?:Answers;questionId?:string}
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 export function validate(input:unknown):{event:EventPayload;result:string|null}{
  if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Invalid event')
  const o=input as Record<string,unknown>
- const allowed=['sessionId','token','eventId','kind','consentVersion','adultConfirmed','consent','answers','questionId']
- if(Object.keys(o).some(k=>!allowed.includes(k))||!uuid.test(String(o.sessionId))||!uuid.test(String(o.eventId))||typeof o.token!=='string'||!/^[a-f0-9]{64}$/.test(o.token)||!kinds.includes(o.kind as Kind)||typeof o.consentVersion!=='string'||!['plum-responses-v1',CONSENT_VERSION].includes(o.consentVersion)||o.consent!==true||o.adultConfirmed!==true)throw Error('Invalid event')
+ const allowed=['sessionId','token','eventId','kind','consentVersion','adultConfirmed','consent','sensitiveConsent','answers','questionId']
+ if(Object.keys(o).some(k=>!allowed.includes(k))||!uuid.test(String(o.sessionId))||!uuid.test(String(o.eventId))||typeof o.token!=='string'||!/^[a-f0-9]{64}$/.test(o.token)||!kinds.includes(o.kind as Kind)||typeof o.consentVersion!=='string'||!['plum-responses-v1','plum-responses-v2',CONSENT_VERSION].includes(o.consentVersion)||o.consent!==true||o.adultConfirmed!==true)throw Error('Invalid event')
+ if(o.kind!=='withdraw'&&(o.consentVersion!==CONSENT_VERSION||o.sensitiveConsent!==true))throw Error('Explicit sensitive consent required')
  const event=o as EventPayload
  if(event.kind==='answer'||event.kind==='complete'){
   if(!event.answers||typeof event.answers!=='object'||Array.isArray(event.answers)||Object.keys(event.answers).length>21)throw Error('Invalid answers')

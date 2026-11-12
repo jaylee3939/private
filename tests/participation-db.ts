@@ -2,6 +2,8 @@ import type {PGlite} from '@electric-sql/pglite'
 // PostgREST transport substitute backed by actual local SQL, never a live project.
 export function participationTransport(db:PGlite,userId:string):typeof fetch{return async(url,init)=>{
  const u=new URL(String(url)),path=u.pathname,p=typeof init?.body==='string'?JSON.parse(init.body):null
+ if(path==='/rest/v1/rpc/plum_increment_basic')return new Response(JSON.stringify((await db.query<{r:unknown}>('select public.plum_increment_basic($1) r',[p.p_kind])).rows[0].r))
+ if(path==='/rest/v1/plum_basic_daily')return new Response(JSON.stringify((await db.query('select day::text,visits::int,starts::int,completions::int,shares::int from public.plum_basic_daily where day>=$1::date and day<=$2::date order by day',[u.searchParams.getAll('day')[0].slice(4),u.searchParams.getAll('day')[1].slice(4)])).rows))
  if(path==='/auth/v1/user')return new Response(JSON.stringify({id:userId}))
  if(path==='/rest/v1/plum_admins')return new Response(JSON.stringify((await db.query('select user_id from public.plum_admins where user_id=$1::uuid',[userId])).rows))
  if(path==='/rest/v1/rpc/plum_metrics'||path==='/rest/v1/rpc/plum_metrics_v3')return new Response(JSON.stringify((await db.query<{m:unknown}>(`select public.${path.endsWith('_v3')?'plum_metrics_v3':'plum_metrics'}($1::date,$2::date) m`,[p.p_from,p.p_to])).rows[0].m))

@@ -6,7 +6,7 @@ import admin from '../api/admin.ts'
 import config from '../api/config.ts'
 const origin='https://private-atv6.vercel.app'
 function response(){let status=0,text='';const headers:Record<string,string>={};return {response:{set statusCode(n:number){status=n},setHeader:(k:string,v:string)=>{headers[k]=v},end:(v:string)=>{text=v}} as any,value:()=>({status,body:JSON.parse(text),headers})}}
-const payload=()=>({sessionId:randomUUID(),eventId:randomUUID(),token:'a'.repeat(64),kind:'visit',consent:true,adultConfirmed:true,consentVersion:'plum-responses-v1'})
+const payload=()=>({sessionId:randomUUID(),eventId:randomUUID(),token:'a'.repeat(64),kind:'visit',consent:true,sensitiveConsent:true,adultConfirmed:true,consentVersion:'plum-responses-v3'})
 test('Vercel routes fail closed, isolate admins and never return a service key',async()=>{
  const old={...process.env},fetchBefore=globalThis.fetch
  try{
@@ -29,7 +29,7 @@ test('Vercel routes fail closed, isolate admins and never return a service key',
   globalThis.fetch=async(url:any)=>new Response(String(url).includes('/auth/v1/user')?JSON.stringify({id:'11111111-1111-4111-8111-111111111111'}):'[]',{status:200})
   r=response();await admin({method:'GET',headers:{authorization:'Bearer test-token'},url:'/api/admin?from=2026-11-01&to=2026-11-03'} as any,r.response);assert.equal(r.value().status,403)
   globalThis.fetch=async(url:any)=>{
-   const u=new URL(String(url));if(u.pathname.includes('/plum_share_events'))return new Response('[]',{headers:{'Content-Range':'*/0'}});if(u.pathname.includes('/plum_sessions')){const n=u.searchParams.has('created_at')?2:1;return new Response('[]',{headers:{'Content-Range':`0-0/${n}`}})}
+   const u=new URL(String(url));if(u.pathname.includes('/plum_basic_daily'))return new Response('[]');if(u.pathname.includes('/plum_share_events'))return new Response('[]',{headers:{'Content-Range':'*/0'}});if(u.pathname.includes('/plum_sessions')){const n=u.searchParams.has('created_at')?2:1;return new Response('[]',{headers:{'Content-Range':`0-0/${n}`}})}
    return new Response(JSON.stringify(u.pathname.includes('/auth/v1/user')?{id:'11111111-1111-4111-8111-111111111111'}:u.pathname.includes('/plum_admins')?[{user_id:'11111111-1111-4111-8111-111111111111'}]:{shares:0,visits:2,starts:1,completions:1,dropoffs:0,daily:[],results:[{code:'BMR',count:1}],answers:[]}))
   }
   r=response();await admin({method:'GET',headers:{authorization:'Bearer test-token'},url:'/api/admin?from=2026-11-01&to=2026-11-03'} as any,r.response);assert.equal(r.value().status,200);assert.equal(r.value().body.completions,1)

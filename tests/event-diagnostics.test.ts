@@ -6,7 +6,7 @@ const origin='https://private-atv6.vercel.app'
 function response(){let status=0,value:any;return {res:{set statusCode(n:number){status=n},setHeader(){},end(s:string){value=JSON.parse(s)}} as any,get:()=>({status,value})}}
 test('storage failures distinguish origin, consent, disabled collection, RPC permissions and DNS without sensitive logs',async()=>{
  const old={...process.env},fetchBefore=globalThis.fetch,warn=console.warn,info=console.info;const logs:unknown[]=[]
- const input={sessionId:randomUUID(),eventId:randomUUID(),token:'c'.repeat(64),kind:'visit',adultConfirmed:true,consent:true,consentVersion:'plum-responses-v1'}
+ const input={sessionId:randomUUID(),eventId:randomUUID(),token:'c'.repeat(64),kind:'visit',adultConfirmed:true,consent:true,sensitiveConsent:true,consentVersion:'plum-responses-v3'}
  const req={method:'POST',headers:{origin},body:input} as any
  try{
   console.warn=(...a:unknown[])=>{logs.push(a)};console.info=console.warn
