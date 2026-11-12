@@ -44,13 +44,11 @@ export class Participation {
     const requestId=typeof value?.requestId==='string'&&/^[a-f0-9-]{36}$/i.test(value.requestId)?value.requestId:''
     this.failure(s,{stage:event.kind,code,status:r.status,...(requestId?{requestId}:{}),...(databaseCode?{databaseCode}:{})})
     this.lastFailure=` [${event.kind} · HTTP ${r.status} · ${code}${databaseCode?' · DB '+databaseCode:''}${requestId?' · '+requestId:''}]`
-    console.warn('PLUM storage', {stage:event.kind,status:r.status,errorCode:code,...(requestId?{requestId}:{})})
     if(r.status===400||r.status===403||['COLLECTION_DISABLED','PARTICIPATION_SETUP_REQUIRED','SHARE_SETUP_REQUIRED','INVALID_EVENT','SESSION_REJECTED','SERVER_KEY_INVALID','SERVER_KEY_PUBLIC','SERVER_KEY_MISSING'].includes(code))return false
    }catch(error){
     const code=error instanceof Error&&error.name==='TimeoutError'?'STORAGE_TIMEOUT':'STORAGE_NETWORK_ERROR'
     this.failure(s,{stage:event.kind,code})
     this.lastFailure=` [${event.kind} · ${code}]`
-    console.warn('PLUM storage',{stage:event.kind,errorCode:code})
    }
    if(attempt<2)await new Promise(resolve=>setTimeout(resolve,500*(attempt+1)))
   }return false

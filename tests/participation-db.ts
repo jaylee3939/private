@@ -28,6 +28,8 @@ export function participationTransport(db:PGlite,userId:string):typeof fetch{ret
  }
  if(path==='/rest/v1/plum_sessions'){
   const sid=u.searchParams.get('id')?.slice(3)
+  if(u.searchParams.get('select')==='started_at,completed_at,result_code')return new Response(JSON.stringify((await db.query('select started_at,completed_at,result_code from public.plum_sessions where id=$1::uuid',[sid])).rows))
+  if(u.searchParams.get('limit')==='10')return new Response(JSON.stringify((await db.query('select id,created_at,started_at,completed_at from public.plum_sessions order by created_at desc limit 10')).rows))
   if(u.searchParams.get('select')?.includes('token_hash'))return new Response(JSON.stringify((await db.query('select id,token_hash,started_at,completed_at,result_code from public.plum_sessions where id=$1::uuid',[sid])).rows))
   if(u.searchParams.get('select')?.includes('plum_events')){
    const sessions=(await db.query<any>('select id,token_hash,started_at,completed_at,result_code from public.plum_sessions where id=$1::uuid',[sid])).rows

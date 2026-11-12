@@ -19,8 +19,8 @@ try{
  process.env.SUPABASE_ANON_KEY='sb_publishable_runtime-test'
  process.env.SUPABASE_SERVICE_ROLE_KEY='sb_secret_test-only-never-print'
  process.env.DATA_COLLECTION_ENABLED='false'
- let r=response();await config({method:'GET',url:'/api/config?diagnostics=1'},r.res)
- assert.equal(r.get().status,200);assert.equal(r.get().value.configVersion,'plum-config-2');assert.equal(r.get().value.collectionEnabled,false);assert.equal(r.get().value.auth,undefined)
+ let r=response();await config({method:'GET',headers:{},url:'/api/config?diagnostics=1'},r.res)
+ assert.equal(r.get().status,401);assert.equal(r.get().value.checks,undefined)
  assert.equal(JSON.stringify(r.get().value).includes(process.env.SUPABASE_SERVICE_ROLE_KEY),false)
  r=response();await config({method:'GET',url:'/api/config'},r.res);assert.equal(r.get().status,200);assert.equal(r.get().value.auth.url,process.env.SUPABASE_URL)
  r=response();await admin({method:'GET',headers:{},url:'/api/admin'},r.res);assert.equal(r.get().status,401)

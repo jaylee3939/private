@@ -22,7 +22,7 @@ test('consent gates collection; full answers, withdrawal and refresh do not leak
  expect(events.every(e=>!('email' in e)&&!('result' in e))).toBe(true)
  await page.getByRole('checkbox',{name:/익명 참여 통계/}).uncheck()
  await expect.poll(()=>events.filter(e=>e.kind==='withdraw').length).toBe(1)
- await expect(page.getByText('수집을 중단하고 현재 참여 세션의 저장 기록을 삭제했어요.')).toBeVisible()
+ await expect(page.getByText('현재 참여 기록을 삭제했어요.')).toBeVisible()
  const count=events.length;await page.reload();await page.waitForTimeout(200);expect(events).toHaveLength(count)
  expect(await page.evaluate(()=>localStorage.length)).toBe(0)
 })
@@ -51,7 +51,7 @@ test('admin login gate, forbidden user and aggregate dashboard',async({page})=>{
 test('admin distinguishes a server API failure from missing environment variables',async({page})=>{
  await page.route('**/api/config',r=>r.fulfill({status:500,json:{error:'server failed'}}))
  await page.goto('/admin')
- await expect(page.getByRole('alert')).toContainText('HTTP 500')
+ await expect(page.getByText('관리자 로그인 설정을 확인해야 합니다.',{exact:false})).toBeVisible();await expect(page.getByText('HTTP 500',{exact:false})).toHaveCount(0)
  await expect(page.getByRole('heading',{name:'관리자 로그인'})).toHaveCount(0)
 })
 test('valid public login settings display login with collection locked; diagnostics show no values',async({page})=>{
@@ -59,9 +59,7 @@ test('valid public login settings display login with collection locked; diagnost
  await page.route('**/api/config',r=>r.fulfill({json:{...config,collectionEnabled:false,collectionLocked:true,configVersion:'plum-config-2',checks,auth:{url:'https://plum-test.supabase.co',key:'sb_publishable_test'}}}))
  await page.goto('/admin')
  await expect(page.getByRole('heading',{name:'관리자 로그인'})).toBeVisible()
- await page.getByText('서버 설정 진단 · 키 값은 표시하지 않습니다').click()
- await expect(page.getByRole('cell',{name:'false 설정'})).toHaveCount(2)
- await expect(page.getByRole('link',{name:/값 없는 진단 결과/})).toHaveAttribute('href','/api/config?diagnostics=1')
+ await expect(page.getByText('서버 설정 진단 · 키 값은 표시하지 않습니다')).toHaveCount(0)
  expect(await page.locator('body').innerText()).not.toContain('sb_publishable_test')
 })
 
@@ -89,11 +87,24 @@ test('config loading cannot hide consent behind a running quiz; no-consent resul
  release();await expect(page.getByRole('checkbox',{name:/익명 참여 통계/})).toBeVisible()
  await page.getByRole('button',{name:'내 PLUM TYPE 찾기'}).click()
  for(let i=0;i<18;i++){await page.getByRole('radio',{name:escape(questions[i].options[0].text)}).check();await page.getByRole('button',{name:i===17?'결과 보기':'다음 질문'}).click()}
- await expect(page.locator('aside[aria-label="참여 데이터 저장 상태"]')).toContainText('수집 동의 없이 시작되어 응답을 저장하지 않았습니다')
+ await expect(page.locator('aside[aria-label="참여 데이터 저장 상태"]')).toHaveCount(0)
  expect(events).toBe(0)
  // Consent after the result creates a visit only, never retroactively sends answers/completion.
  const captured:string[]=[];await page.unroute('**/api/events')
  await page.route('**/api/events',r=>{const e=r.request().postDataJSON();captured.push(e.kind);return r.fulfill({json:{stored:true,verified:true,eventId:e.eventId}})})
  await page.getByRole('checkbox',{name:/익명 참여 통계/}).check();await expect.poll(()=>captured.length).toBe(1);expect(captured).toEqual(['visit'])
- await expect(page.locator('aside[aria-label="참여 데이터 저장 상태"]')).toContainText('이전 답변은 소급 저장하지 않습니다')
+ await expect(page.locator('aside[aria-label="참여 데이터 저장 상태"]')).toHaveCount(0)
+})
+
+test('public result never displays storage failures or deployment diagnostics',async({page})=>{
+ await page.route('**/api/config',r=>r.fulfill({json:{...config,deploymentCommit:'abcdef0',flowVersion:'plum-flow-4'}}))
+ const events:string[]=[]
+ await page.route('**/api/events',r=>{events.push(r.request().postDataJSON().kind);return r.fulfill({status:403,json:{errorCode:'SERVER_KEY_INVALID',requestId:'synthetic-diagnostic-reference'}})})
+ await page.goto('/');await page.getByRole('checkbox',{name:/만 19세 이상/}).check();await page.getByRole('checkbox',{name:/익명 참여 통계/}).check();await page.getByRole('button',{name:'내 PLUM TYPE 찾기'}).click()
+ for(let i=0;i<18;i++){await page.getByRole('radio',{name:escape(questions[i].options[0].text)}).check();await page.getByRole('button',{name:i===17?'결과 보기':'다음 질문'}).click()}
+ await expect(page.locator('.plum-result-code')).toHaveText('BTP')
+ await expect.poll(()=>events.includes('complete')).toBe(true)
+ const text=await page.locator('body').innerText()
+ for(const diagnostic of ['DB 확인','참여 통계 저장을 완료','SERVER_KEY_INVALID','synthetic-diagnostic-reference','abcdef0','plum-flow-4','저장 진단'])expect(text).not.toContain(diagnostic)
+ await expect(page.getByRole('button',{name:'결과 링크 복사'})).toBeVisible()
 })

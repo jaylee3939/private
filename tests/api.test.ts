@@ -23,7 +23,7 @@ test('Vercel routes fail closed, isolate admins and never return a service key',
   r=response();await events({method:'POST',headers:{origin},body:payload()} as any,r.response);assert.equal(r.value().status,200);assert.equal(paths.length,3) // mocked storage only; production settings are never changed
   process.env.DATA_COLLECTION_ENABLED='false'
   r=response();await events({method:'POST',headers:{origin},body:payload()} as any,r.response);assert.equal(r.value().status,503);assert.equal(paths.length,3)
-  r=response();config({method:'GET'} as any,r.response);assert.equal(JSON.stringify(r.value().body).includes('sb_secret_server-only-test-key'),false);assert.equal(r.value().body.collectionEnabled,false);assert.equal(r.value().body.collectionLocked,false);assert.equal(r.value().body.authReady,true)
+  r=response();config({method:'GET'} as any,r.response);assert.equal(JSON.stringify(r.value().body).includes('sb_secret_server-only-test-key'),false);assert.equal(r.value().body.collectionEnabled,false);assert.equal(r.value().body.collectionLocked,undefined);assert.equal(r.value().body.authReady,undefined);assert.equal(r.value().body.deploymentCommit,undefined);assert.equal(r.value().body.checks,undefined)
   process.env.SUPABASE_ANON_KEY='sb_secret_server-only-test-key';r=response();config({method:'GET'} as any,r.response);assert.equal(r.value().body.auth,null);process.env.SUPABASE_ANON_KEY=`e30.${Buffer.from('{"role":"anon"}').toString('base64url')}.test`
   r=response();await admin({method:'GET',headers:{},url:'/api/admin'} as any,r.response);assert.equal(r.value().status,401)
   globalThis.fetch=async(url:any)=>new Response(String(url).includes('/auth/v1/user')?JSON.stringify({id:'11111111-1111-4111-8111-111111111111'}):'[]',{status:200})
